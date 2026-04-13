@@ -1,0 +1,600 @@
+题目
+（1）首先为什么在温度为0的情况下，LLM的两次输出依旧是不完全一样的？
+
+（2）涉及数据并行的各种问题汇总：
+
+详细解释一下AllReduce这个操作，以及这个过程涉及的通信量的分析
+分析一下一个参数量为4B的模型，精度为bf16的情况下，我们在全量微调的时候需要多少显存？
+详细地分析一下ZERO-1、ZERO-2、ZERO-3以及每一个阶段所需要的显存，对应的通信量又是多少？
+（3）transformer的MHA之后有哪些变体呢？分别解释一下。
+
+附加：用torch分别实现一下GQA【测试样例详见前面的OJ网站】
+
+
+（4）推导并实现PPO、GRPO、DPO的损失函数，为什么DAPO要把裁剪的 
+ 提高。
+
+总结⚠️：
+
+当adv > 0时， 
+ 大于 
+ 时，梯度不回传。
+
+当adv < 0时， 
+ 小于 
+ 时，梯度不回传。
+
+DAPO修改 
+ ，只会影响advantage > 0的那部分的token的更新，并且对低概率的token的正更新是利好。我们先举个例子，比如当 
+ （大多数算法的默认值）时，考虑两个动作，其概率分别为 
+ 和 
+ 。更新后的最大可能概率分别为 
+ 和 
+ 。这意味着对于概率较高的 token（如 0.9），受到的约束较少。相反，对于低概率 token，要实现概率的显著增加要困难得多。经验上，我们还观察到裁剪 token 的最大概率约为 
+ 。核心想法就是原来堆成裁剪小概率的token受到loss的正向引导作用比较小，所以应该提升梯度上限，增加对正确的小概率的token的引导。
+
+所以 PPO 的 Clip 作用在于：对于优势值大于 0 的样本，我们不希望它在提高新策略概率时过于激进；而对于优势值小于 0 的样本，我们不希望它在打压负优势概率时过于激进，即不希望概率降得太低。
+
+总结来讲：
+
+1. 对于adv > 0，不希望过于激进优化得太高
+
+2. 对于adv < 0，不希望打压得太低
+
+（5）简单聊聊GSPO以及其实现。
+
+（6）分析一下Rope位置编码，并完善下面的代码：
+
+附加：ROPE直接做长度外推会出现效果的下滑，这个是为什么呢？以及一般会怎么缓解呢？
+
+import torch
+import math
+
+def rotary_position_embedding(q: torch.Tensor, k: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    实现RoPE（Rotary Position Embedding）
+    输入：
+        q: Query张量，形状为 [batch_size, seq_len, n_heads, head_dim]
+        k: Key张量，形状为 [batch_size, seq_len, n_heads, head_dim]
+    输出：
+        q_rot: 旋转后的Query
+        k_rot: 旋转后的Key
+    """
+    TODO: 完善代码
+（7）聊聊on policy distillation，以及其与SFT、off policy distillation、RL之间的关联？讨论一下你的看法
+
+（8）有了解过现在的前沿的“原生多模态模型”比如kimi2.5、qwen-vl是怎么实现的吗？读过最新的前沿模型的技术报告吗？
+
+（9）分析介绍一下GAE
+
+蒙特卡洛模拟和时序差分估计的区别？
+偏差和方差是什么？
+GAE怎么推导出来的
+手撕一下GAE的代码，完善下面的code block
+来自openrlhf    
+def get_advantages_and_returns(
+        self,
+        values: torch.Tensor,
+        rewards: torch.Tensor,
+        action_mask: torch.Tensor,
+        gamma: float,
+        lambd: float,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Function that computes advantages and returns from rewards and values.
+        Calculated as in the original PPO paper: https://arxiv.org/abs/1707.06347
+        Note that rewards may include a KL divergence loss term.
+
+        Advantages looks like this:
+        Adv1 =  R1 + γ * λ * R2     + γ^2 * λ^2 * R3       + ...
+              - V1 + γ * (1 - λ) V2 + γ^2 * λ * (1 - λ) V3 + ...
+
+        Returns looks like this:
+        Ret1 =  R1 + γ * λ * R2     + γ^2 * λ^2 * R3       + ...
+                   + γ * (1 - λ) V2 + γ^2 * λ * (1 - λ) V3 + ...
+
+        Input:
+        - values: Tensor of shape (batch_size, response_size)
+        - rewards: Tensor of shape (batch_size, response_size)
+
+        Output:
+        - advantages: Tensor of shape (batch_size, response_size)
+        - returns: Tensor of shape (batch_size, response_size)
+        """
+        lastgaelam = 0
+        advantages_reversed = []
+        response_length = rewards.size(1)
+
+        # Mask invalid responses
+        if action_mask is not None:
+            values = action_mask * values
+            rewards = action_mask * rewards
+
+Note：注重三个子问题之间的逻辑链条
+
+
+
+
+（10）代码实现一下SFT损失函数【qwen-C】
+
+
+（11）手撕线性回归【minimax】
+
+import numpy as np
+
+class LinearReg:
+    def __init__(self, dim) -> None:
+        self.W = None
+
+    def fit(self, x, y):
+        """
+        x: (B, dim)
+        y: (B, 1)
+        """
+
+
+    def predict(self, x):
+
+if __name__ == '__main__':
+    batch_size, dim = 16, 2
+    x = np.random.uniform(-5, 5, size=(batch_size, dim))
+    w = np.random.uniform(-5, 5, size=(dim, 1))
+    y = x @ w + 10
+
+    lr = LinearReg(dim=1)
+
+    lr.fit(x, y)
+
+    y_hat = lr.predict(x)
+
+    assert np.allclose(y, y_hat)
+补充：手撕softmax多分类器的梯度回传【minimax】
+
+
+
+（12）有关MoE的训练推理一致性【腾讯、美团】
+
+为什么MoE比Dense模型更容易出现训推不一致（高频出现）
+常见的缓解训推不一致性的办法
+deepseek的论文是怎么处理训推的不一致性的
+实现MoE的代码【也是前面提到的oj里面的题目】：
+
+
+（13）llama和qwen2.5系列的一些设计创新点？
+
+（14）KL估计器K1 K2 K3 ？聊一下这三个各自的表达式和特点？在主流的 RLHF（如 PPO/GRPO）代码库中，计算 KL 散度惩罚项时，通常会使用 
+。但从纯数学期望来看，这个估计器是有偏的，无偏的 
+（
+）明明更好。为什么我们在 Loss 中不用 
+ 而要用有偏的 
+？
+
+补充：正向KL和反向 KL在大模型post train里有什么不同？为什么RL几乎都用反向KL？
+
+（15）聊一下SFT和RL的区别，以及哪些场景下用 SFT 和 RL 分别会比较好？【蚂蚁百灵】
+
+答案
+（1）关键词：浮点数工程上的非结合性 + 分布式系统
+
+简单来讲浮点数的数值精度问题，详细地来讲是因为浮点数运算在实际工程中并不具备结合性的特点，比如(A+B)+C和A+(B+C)的计算结果未必保持一致。最常见的比如LLM在flash-attn过程中的将attn的加法操作会很多，可能会调度到不同的线程上计算，那么最终的聚合的结果的结合性就未必能保持一致，因此计算结果上会有细微的差别。
+
+（2）
+
+
+
+有关DP的各种细节推荐阅读，感谢猿老师的详细的讲解：图解大模型训练之：数据并行上篇(DP, DDP与ZeRO)
+
+（2.1）有关ALL-Reduce的通信量分析：
+
+首先，ALLReduce这个操作的目的是：聚合 + 下发。分成Reduce-Scatter以及All-Gather两个过程，假设模型参数量为 
+ ，这两个子阶段的单卡通信量分别为
+，于是ALLReduce的单卡通信总量为
+。
+
+Reduce-Scatter的过程的起点和终点状态如下，Reduce-Scatter是一个环状传输的过程，每一个动作，N张卡总共传输的参数量为 
+ ，环状系统总共进行了N-1次传输，因此整个系统的数据传输量为 
+ ，于是单卡的通信量约等于 
+ 。
+
+
+Reduce-Scatter的初始状态
+
+Reduce-Scatter的结束状态
+All-Gather的起点和终点状态如下，All-Gather的目的是将前一个阶段的每一个GPU上面的完整的局部内容聚合到每一个GPU上，比如上图的Reduce-Scatter的结束状态里面的每一个GPU的红色的子部分即为完整的部分，需要将其broadcast到其他的每一个gpu上面直接替代原来的不完整的部分。很显然，整个系统的通信总量为
+ ，于是单卡的通信量约等于 
+ 。
+
+
+All-Gather的起点状态
+
+All-Gather的结束状态
+（2.2）有关训练所需要的显存分析，简单来说需要 
+ ，如果一个模型是4B的话，那么我们需要64GB的显存。
+
+这个需要理解AdamW的基本原理。Adam的更新逻辑如下，假设 
+ 为第t步的梯度：
+
+
+我们实际更新的公式为：
+
+
+这边需要存储的有三个方面，原模型参数（bf16），梯度（bf16），以及优化器参数（均为fp32，包括模型参数的拷贝、一阶向量和二阶向量）。模型参数为 
+ ，梯度为 
+ ，而后面的优化器参数为了确保数值精度足够，都是32位4字节，于是优化器参数那边占据大头为 
+ 。总的就是 
+。当然这里做了一些简化分析，没有考虑activation等所需要的参数量。
+
+（2.3）
+
+ZERO-1将优化器进行分片，单卡显存为 
+ 。对于一个4B的模型而言，当N=8时，等于22GB；对于一个7B的模型而言，N=8带入为38.5GB。
+
+通信过程分析：（a）每张卡上都是对应部分参数 
+ 的的优化器状态 
+ ，每一张卡通过本卡的数据批次forward以及backward之后得到当前卡的梯度 
+，这边x表示数据的意思，理解ZERO的核心需要从DP这个视角下去理解。(b) 通过Reduce-Scatter，我们得到每一张卡 
+ 上的 
+ ，代表我们拿到了所有数据对应的梯度。此时通信量为 
+ 。（c）使用 
+ 更新每一张卡上的局部参数 
+ ，最后使用一次ALL-Gather将每一张卡的局部参数汇总成完整模型W。理解ZERO的核心需要从优化器参数是分片的，因此实际梯度、实际参数更新都是分片的去理解。
+
+（2.4）
+
+ZERO-2将梯度进行分片，单卡显存为 
+ 。
+
+通信过程分析和2.3及其类似，这两个除了有没有显式地将G切片以外，其他没太大区别。
+
+（2.5）
+
+ZERO-3将模型进行分片，单卡显存为 
+ ，但是峰值显存和ZERO-2一样。
+
+通信过程，首先通过ALL-Gather使得每一张卡的参数变得完整，此时通信量为 
+ ，得到完整参数之后进行forward，随后就可以把不属于当前卡的参数丢掉。随后进行一次backward，ALL-Gather得到完整参数，通信量为 
+ 。
+
+最后通过Reduce-Scatter得到局部参数所需要的完整的梯度G，通信量为 
+ ；最后每一张卡更新自己的分片参数即可，无需再将自己的分片参数同步到其他的GPU。
+
+（3）
+
+
+
+（4）假设 
+
+PPO损失函数，N为batch的大小，T为句子长度：
+
+
+其中 
+ 为第t个token的优势，计算公式为 
+ 。
+
+
+
+import torch
+
+def compute_grpo_loss(
+        log_probs,      # 当前模型的 log_probability
+        log_probs_old,  # 旧模型的 log_probability
+        advantages,     # 计算好的优势函数 (GRPO 中通常是组内归一化后的奖励)
+        eps_clip=0.2    # 建议使用统一的 eps，或者保留你的 eps_low/high
+    ):
+    # 1. 在 log 空间计算比例，防止数值溢出
+    ratio = torch.exp(log_probs - log_probs_old)
+    
+    # 2. 计算两个代理目标
+    surr1 = ratio * advantages
+    surr2 = torch.clamp(ratio, 1 - eps_clip, 1 + eps_clip) * advantages
+    
+    # 3. PPO/GRPO 的核心：取最小收益
+    # 注意：如果是为了最大化奖励，Loss 应该是目标的负数
+    loss = -torch.min(surr1, surr2).mean() 
+    
+    return loss
+（5）GSPO是GRPO的改进版本，序列级别的对齐粒度。
+
+
+把前面GRPO的token的索引去掉，这个sequence共享一个目标，一人犯错全队受罚。
+
+其中 
+ 。
+
+
+
+详细代码细节可以查阅verl的代码，这边仅仅只是为了方便个人理解做的notes
+
+import torch
+import torch.nn.functional as F
+
+def compute_gspo_loss(
+    log_probs,       # 当前模型的 log_probs, 形状: (B, T)
+    log_probs_old,   # 旧模型的 log_probs, 形状: (B, T)
+    adv,             # 序列级优势函数, 形状: (B,) 或 (B, 1)
+    eps_clip=0.2,    # PPO 剪切范围
+    mask=None        # 用于排除 padding token 的掩码
+):
+    """
+    GSPO (Group Sequence Policy Optimization) 损失函数实现
+    """
+    # 1. 计算每个 token 的对数概率差
+    log_ratio = log_probs - log_probs_old
+    
+    # 2. 序列级聚合与长度归一化 (核心步骤)
+    # 如果有 mask，只计算有效 token 的平均值
+    if mask is not None:
+        log_ratio = log_ratio * mask
+        # 几何平均在对数空间表现为有效 token 的算术平均
+        seq_log_rho = log_ratio.sum(dim=-1) / mask.sum(dim=-1).clamp(min=1)
+    else:
+        seq_log_rho = log_ratio.mean(dim=-1)
+        
+    # 3. 转换回概率空间得到序列级的 rho
+    rho = torch.exp(seq_log_rho) # 形状: (B,)
+    
+    # 4. 执行 Clipped Surrogate Objective
+    # 确保 adv 的形状与 rho 匹配 (B,)
+    adv = adv.squeeze()
+    
+    surr1 = rho * adv
+    surr2 = torch.clamp(rho, 1 - eps_clip, 1 + eps_clip) * adv
+    
+    # 5. 计算最终 Loss
+    # 因为要 maximize 奖励，所以训练时取负号进行 minimize
+    loss = -torch.min(surr1, surr2).mean()
+    
+    return loss
+
+
+DPO推导过程（并不严谨，只表达大概意思）以及代码实现：
+
+首先，策略优化的目标是：
+
+
+玻尔兹曼分布求得： 
+
+带入BT优化目标即可，一般我们求解使用的是log sigmoid函数。
+
+
+
+class DPOLoss(nn.Module):
+    """
+    DPO Loss
+    """
+
+    def __init__(self, beta: float, label_smoothing: float = 0.0, ipo: bool = False) -> None:
+        super().__init__()
+        self.beta = beta
+        self.label_smoothing = label_smoothing
+        self.ipo = ipo
+
+    def forward(
+        self,
+        policy_chosen_logps: torch.Tensor,
+        policy_rejected_logps: torch.Tensor,
+        reference_chosen_logps: torch.Tensor,
+        reference_rejected_logps: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        pi_logratios = policy_chosen_logps - policy_rejected_logps
+        ref_logratios = reference_chosen_logps - reference_rejected_logps
+        logits = pi_logratios - ref_logratios
+
+        if self.ipo:
+            losses = (logits - 1 / (2 * self.beta)) ** 2  # Eq. 17 of https://arxiv.org/pdf/2310.12036v2.pdf
+        else:
+            # Eq. 3 https://ericmitchell.ai/cdpo.pdf; label_smoothing=0 gives original DPO (Eq. 7 of https://arxiv.org/pdf/2305.18290.pdf)
+            losses = (
+                -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
+                - F.logsigmoid(-self.beta * logits) * self.label_smoothing
+            )
+
+        loss = losses.mean()
+        chosen_rewards = self.beta * (policy_chosen_logps - reference_chosen_logps).detach()
+        rejected_rewards = self.beta * (policy_rejected_logps - reference_rejected_logps).detach()
+
+        return loss, chosen_rewards, rejected_rewards
+（6）ROPE位置编码
+
+位置编码的目的是维持相对性，已知 
+ 在我们手上，二者在序列中的位置分别是 
+ ，我们要做的是找到一个映射函数f，映射函数f的作用是加上位置编码，使得
+
+
+详细求解可以阅读苏剑林老师的blog：Transformer升级之路：2、博采众长的旋转式位置编码 - 科学空间|Scientific Spaces
+
+我们最终得到的结果是： 
+
+具体而言，假设q是一个二维向量，那么 
+
+于是 
+ 。
+
+一般的，如果q和k是偶数维度的向量，那么 
+ 可以写成如下形式：
+
+
+具体实现上，我们有如下代码：
+
+import torch
+import math
+
+
+def rotary_position_embedding(
+    q: torch.Tensor, k: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    实现RoPE（Rotary Position Embedding）
+    输入：
+        q: Query张量，形状为 [batch_size, seq_len, head_dim]
+        k: Key张量，形状为 [batch_size, seq_len, head_dim]
+    输出：
+        q_rot: 旋转后的Query
+        k_rot: 旋转后的Key
+    """
+    b, seq_len, head_dim = q.shape
+
+    # 计算 theta: theta_i = 10000^(-2*i/head_dim)，i 是维度索引
+    # 形状为 [head_dim // 2]
+    dim_indices = torch.arange(head_dim // 2)
+    theta = 10000 ** (-2 * dim_indices / head_dim)
+
+    # 计算位置索引: [seq_len, 1]
+    positions = torch.arange(seq_len).unsqueeze(1)
+
+    # 计算 position * theta: [seq_len, head_dim // 2]
+    angles = positions * theta
+
+    # 计算 cos 和 sin: [seq_len, head_dim // 2]
+    cos_theta = angles.cos()
+    sin_theta = angles.sin()
+
+    # 扩展到 [seq_len, head_dim // 2] -> [batch, seq_len, head_dim // 2]
+    cos_theta = cos_theta.unsqueeze(0).expand(b, -1, -1)
+    sin_theta = sin_theta.unsqueeze(0).expand(b, -1, -1)
+
+    # 旋转公式：
+    # x_rot[2i] = x[2i] * cos - x[2i+1] * sin
+    # x_rot[2i+1] = x[2i] * sin + x[2i+1] * cos
+    q_even = q[:, :, 0::2]
+    q_odd = q[:, :, 1::2]
+    k_even = k[:, :, 0::2]
+    k_odd = k[:, :, 1::2]
+
+    q_rot_even = q_even * cos_theta - q_odd * sin_theta
+    q_rot_odd = q_even * sin_theta + q_odd * cos_theta
+    k_rot_even = k_even * cos_theta - k_odd * sin_theta
+    k_rot_odd = k_even * sin_theta + k_odd * cos_theta
+
+    # 合并偶数和奇数维度
+    q_rot = torch.stack([q_rot_even, q_rot_odd], dim=-1).reshape(b, seq_len, head_dim)
+    k_rot = torch.stack([k_rot_even, k_rot_odd], dim=-1).reshape(b, seq_len, head_dim)
+
+    return q_rot, k_rot
+
+
+if __name__ == "__main__":
+    q = torch.randn(2, 10, 128)
+    k = torch.randn(2, 10, 128)
+    q_rot, k_rot = rotary_position_embedding(q, k)
+    print(q_rot.shape)
+    print(k_rot.shape)
+推荐阅读：上下文长度扩展：从RoPE到YARN
+
+这边只是简单个人笔记，推荐阅读上述博文。
+
+把训练好的Rope扩展到更长的上下文时，由于高频分量混叠，低频分量出现学习不充分或者区分度低的情况，效果会变差。
+
+一个经典的解决办法就是直接对所有的频率都做内插，对所有频率角统一做scale。缺点就是原来的高频会变小，会导致一部分原来的高频信息的丢失，导致分辨率变低。
+
+所以进一步的解决办法是，我们对高频可以不做内插直接外推，对低频的才进行内插。" 根据NTK理论，模型对高频分量的分布敏感，因此对足够高频的分量应该尽量保持其频率不变，需要完全的外推。NTK-by-parts就是基于这样的思想提出的，对于足够低频的分量做完全的内插，对足够高频的分量做完全的外推，而对中间部分的分量，既外推也内插。"【来自上下文长度扩展：从RoPE到YARN】
+
+（7）
+
+相关阅读：
+
+On-Policy Distillation 是什么？如何做？
+从梯度角度看SFT、Off-Policy Distillation、RL、On-Policy Distillation
+先从最简单的SFT聊起：
+
+
+展开：
+
+
+其次是off policy distillation： 
+
+以及OPD： 
+
+（9）
+
+参考阅读:
+
+六、GAE 广义优势估计
+354 赞同 · 9 评论 文章
+这里会省略很多严谨的数学表达，比如期望，仅仅作为个人笔记。
+
+蒙特卡洛模拟：暴力，直接使用当前的policy采样完整的轨迹，使用discouted reward sum的作为对return的估计。MC方法需要用整个episode的经验去估计价值函数，是一种低偏差、高方差的方法
+
+时序差分估计：由于估计量中的随机变量维度较少，即只存在当前时刻的回报值 
+和下一时刻的状态 
+ ，因此估计的方差偏小。TD方法在每个时刻都可以更新价值函数，是一种高偏差、低方差的方法。
+
+MC算法和TD算法是两个极端：MC算法无偏差高方差，TD算法高偏差低方差。如何在二者之间进行平衡呢？这就是
+-return方法：
+
+Gt的估计方式有很多种，取决于你想往后“看多少步”，越往后偏差越小方差越大
+
+
+
+...
+
+
+这些都是对于Gt的估计，随着n的增大，方差变大偏差变小，所以我们希望在方差和偏差之间做一个balance：
+
+
+我们需要有：
+
+
+假设： 
+ ，那么就得到了我们比较的 
+ -return预测目标了。
+
+adv那边的逻辑链条也是一样的。
+
+（10）SFT损失函数的实现
+
+记得shift就行，代码仅供参考，可以详细阅读openrlhf或者verl的实现
+
+import torch.nn as nn
+import torch
+
+class SFTLoss(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
+
+    def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        """
+        logits shape (B, L, V)
+        labels shape (B, L)
+        """
+        B, L, V = logits.shape
+
+        logits = logits[:, :-1, :].contiguous()
+        labels = labels[:, 1:].contiguous()
+        loss = self.loss_fn(logits.view(-1, V), labels.view(-1))    
+
+        return loss
+
+
+if __name__ == "__main__":
+    x = torch.randn(2, 3, 100)
+    labels = torch.randint(0, 99, (2, 3))
+    loss = SFTLoss()
+    print(loss(x, labels))
+（12）
+
+MoE 比 dense 更容易出现训推不一致，本质原因是：它引入了“离散条件计算路径”，而 dense 是连续确定性计算图。
+
+(12.1 结构性质，top-k选取的路由突变)：在Top-k策略下（例如Top-2），如果第2名和第3名的Logits非常接近（例如一个0.1001，一个0.0999），微小的扰动会导致模型选择了完全不同的Expert。因为Expert之间的参数是独立的，这种“路由突变”会导致输出结果发生剧烈的阶跃变化。MoE引入了硬路由（Hard Routing）机制，使得模型不再是一个完全连续可微的系统。在决策边界附近的微小数值扰动，会导致Top-k选择发生跳变，进而导致被激活的参数路径完全不同。
+
+(12.2 浮点数的非结合性， all-reduce等通信顺序不同 -> Router的Logits排序不同)
+
+Dense模型的累加误差通常只是让Loss波动一点点，但MoE中，All-to-All 通信（Expert Parallelism）涉及跨设备的大规模规约（Reduction），通信顺序的不同、CUDA Kernel实现的差异（比如Training用PyTorch原声，Inference用TensorRT或vLLM的定制Kernel），都会放大精度误差。而这个误差一旦影响到Router的Logits排序，就会触发上述的“突变”。
+
+虽然所有模型都有精度误差，但MoE的‘Router排序’对精度极度敏感。Dense模型的精度误差是线性的，而MoE中精度误差可能导致离散的路径选择错误，这是一种非线性的误差放大。
+
+常见的缓解MoE训推不一致的办法：
+
+（1）Routing Replay，有分成R2和R3
+
+（2）TIS或者Mask，分成token和seq层面的处理粒度
+
+Deepseek的原文片段：
+
+Routing Replay-R3：we preserve the expert routing paths used during sampling in the inference framework and enforce the same routing paths during training, ensuring that identical expert parameters are optimized.
+Sequence Masking：we preserve the truncation masks during sampling from 𝜋old and apply them to 𝜋𝜃 during training, ensuring both policies share identical action subspaces. Empirically, we find that combining top-p sampling with the Keep Sampling Mask strategy effectively preserves language consistency during RL training.
+DeepSeek的做法, Off-Policy Sequence Masking operation（简单来说就是采样和推理的seq级别的log prob ratio大于一定的阈值之后就不要了）+ Routing Replay R3，注意到只有在adv小于0的时候才做mask置0，并且是整个样本级别的mask：
+
+
+deepseek v3.2的优化目标
+（13）PreNorm（RMSNorm）、RoPE、GQA、SwiGLU。
