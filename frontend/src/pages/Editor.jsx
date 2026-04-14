@@ -320,32 +320,55 @@ export default function Editor() {
                             }
 
                             const html = e.clipboardData.getData('text/html');
-                            const plainText = e.clipboardData.getData('text/plain');
+                            let plainText = e.clipboardData.getData('text/plain');
 
-                            // 🚨 [终极大狙：IDE / 原生 Markdown 源码粘贴被 Vditor HTML 解析器圈禁污染的元凶]
-                            // 现象描述：当用户从 VS Code，或者大模型对话框里直接复制带有 ``` 的全篇 Markdown 源码时，
-                            // 剪贴板中往往会附带格式嵌套极其反人类的 text/html 层（带有各种 <pre> 或 font-family: monospace）。
-                            // Vditor 会将这层渲染外壳当作“代码高亮呈现区域”，从而在首尾加上 ```，把所有纯文本连带代码一起强行裹成一个大代码块！
-                            if (plainText && /(?:^|\n)```/.test(plainText) && html) {
-                                // 一旦确诊：剪贴板里存在代表正宗 Markdown 的独立反引号
-                                const sel = window.getSelection();
-                                let isInsideCode = false;
-                                if (sel.rangeCount > 0 && sel.anchorNode) {
-                                    const elm = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
-                                    if (elm && elm.closest) {
-                                        isInsideCode = elm.closest('.vditor-ir__node[data-type="code-block"]') !== null;
-                                    }
+                            let isInsideCode = false;
+                            if (sel.rangeCount > 0 && sel.anchorNode) {
+                                const elm = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+                                if (elm && elm.closest) {
+                                    isInsideCode = elm.closest('.vditor-ir__node[data-type="code-block"]') !== null;
                                 }
+                            }
 
-                                // 只要不是向现有代码块内注入代码（在外部正常段落），必须立刻切断已被污染的 HTML 渲染链！
+                            // 处理从 IDE 或其他平台复制 Markdown 源码时，由于包含了 HTML 格式
+                            // 导致 Vditor 误认为整体是一大段代码从而错误包裹的问题
+                            if (plainText && /(?:^|\n)```/.test(plainText) && html) {
                                 if (!isInsideCode) {
                                     e.preventDefault();
                                     e.stopPropagation();
+                                    if (vditor) vditor.insertValue(plainText);
+                                    return;
+                                }
+                            }
+
+                            // 修复外源复制的跨行或带有不规范空格的 LaTeX 公式（如 $ a $）
+                            // 避免 Vditor 的 HTML 解析导致公式内的下划线等字符被转义
+                            if (plainText && plainText.includes('$') && !isInsideCode) {
+                                let hasMath = false;
+                                
+                                const cleanText = plainText.replace(/\$([\s\S]+?)\$/g, (match, inner) => {
+                                    const hasMathSymbol = inner.includes('\\') || inner.includes('_') || inner.includes('^');
+                                    const hasBasicOp = inner.includes('=') || inner.includes('+') || inner.includes('-') || 
+                                                       inner.includes('*') || inner.includes('/') || inner.includes('<') || inner.includes('>');
+                                    const isMath = hasMathSymbol || (inner.includes('\n') && hasBasicOp);
                                     
-                                    // 直接向 Vditor 注入高纯度素文本 Markdown 源码
-                                    if (vditor) {
-                                        vditor.insertValue(plainText);
+                                    if (isMath) {
+                                        hasMath = true;
+                                        if (inner.includes('\n')) {
+                                            // 跨多行公式统一改为 $$ 块级公式
+                                            return `$$\n${inner.trim()}\n$$`;
+                                        } else {
+                                            // 单行公式去除头尾空格
+                                            return `$${inner.trim()}$`;
+                                        }
                                     }
+                                    return match;
+                                });
+
+                                if (hasMath) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (vditor) vditor.insertValue(cleanText);
                                     return;
                                 }
                             }
