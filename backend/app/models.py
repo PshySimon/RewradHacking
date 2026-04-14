@@ -49,6 +49,7 @@ class Article(Base):
     category = Column(Enum(CategoryEnum), default=CategoryEnum.knowledge, nullable=False)
     visibility = Column(Enum(VisibilityEnum), default=VisibilityEnum.public, nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    code_template = Column(Text, nullable=True)
     tags = Column(String, default="")
     views_count = Column(Integer, default=0)
     comments_count = Column(Integer, default=0)
@@ -89,6 +90,7 @@ class Draft(Base):
     target_id = Column(String(16), nullable=True) # Used to bind code/solution to a specific question article id
     title = Column(String, default="")
     content = Column(Text, default="")
+    code_template = Column(Text, nullable=True)
     tags = Column(String, default="")
     created_at = Column(String, default=get_current_time)
     updated_at = Column(String, default=get_current_time)

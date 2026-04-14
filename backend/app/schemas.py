@@ -46,6 +46,7 @@ class ArticleBase(BaseModel):
     content: str
     category: CategoryEnum = CategoryEnum.knowledge
     visibility: VisibilityEnum = VisibilityEnum.public
+    code_template: Optional[str] = None
     tags: str = ""
 
 class ArticleCreate(ArticleBase):
@@ -87,6 +88,7 @@ class DraftCreate(BaseModel):
     target_id: Optional[str] = None
     title: Optional[str] = ""
     content: Optional[str] = ""
+    code_template: Optional[str] = None
     tags: Optional[str] = ""
 
 class DraftOut(BaseModel):
@@ -96,6 +98,7 @@ class DraftOut(BaseModel):
     target_id: Optional[str]
     title: str
     content: str
+    code_template: Optional[str] = None
     tags: str
     created_at: str
     updated_at: str

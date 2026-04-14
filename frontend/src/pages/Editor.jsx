@@ -5,6 +5,8 @@ import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import JellyCaret from '../components/JellyCaret';
 import TagPill from '../components/TagPill';
+import { macAlert, macConfirm } from '../components/MacModal';
+import { CodeLayout, InterviewLayout, KnowledgeLayout } from '../components/editor-templates';
 
 export default function Editor() {
     const navigate = useNavigate();
@@ -19,6 +21,7 @@ export default function Editor() {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
     const [initialContent, setInitialContent] = useState('');
+    const [codeTemplate, setCodeTemplate] = useState('');
 
     // 草稿箱护甲核心
     const [drafts, setDrafts] = useState([]);
@@ -29,34 +32,42 @@ export default function Editor() {
 
     const fetchDrafts = () => {
         const cat = solveForId ? 'solution' : category;
-        axios.get(`/api/drafts?category=${cat}`).then(res => setDrafts(res.data)).catch(console.error);
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+        // 加入 only_standalone=true，从而将靶场的代码挑战解题缓存碎片隔绝在外，仅展示具有发文骨架的纯正草稿
+        axios.get(`/api/drafts/?category=${cat}&only_standalone=true`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(res => setDrafts(res.data)).catch(console.error);
     };
-    
+
     useEffect(() => {
         fetchDrafts();
     }, [category, solveForId]);
 
     const handleApplyDraft = (draft) => {
-        if(!window.confirm("确定要用该草稿覆盖当前内容吗？")) return;
-        setTitle(draft.title);
-        if(draft.tags) setTags(draft.tags.split(',').filter(Boolean));
-        if(vditorObj) vditorObj.setValue(draft.content);
-        setIsDraftDropdownOpen(false);
+        macConfirm("覆盖确认", "确定要用该历史草稿覆盖当前编辑器内的所有内容吗？当前未保存的心血将遗失。", () => {
+            setTitle(draft.title);
+            if (draft.tags) setTags(draft.tags.split(',').filter(Boolean));
+            if (draft.code_template) setCodeTemplate(draft.code_template);
+            if (vditorObj) vditorObj.setValue(draft.content);
+            setIsDraftDropdownOpen(false);
+        });
     };
-    
-    const handleDeleteDraft = async (e, draft_id) => {
+
+    const handleDeleteDraft = (e, draft_id) => {
         e.stopPropagation();
-        try {
-            await axios.delete(`/api/drafts/${draft_id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
-            fetchDrafts();
-            setDraftError(""); // 一旦删除可以尝试重置错误信息
-        } catch(err) { console.error(err); }
+        macConfirm("删除危险", "这篇草稿将被永久送入回收站，彻底粉碎不可找回。", async () => {
+            try {
+                await axios.delete(`/api/drafts/${draft_id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
+                fetchDrafts();
+                setDraftError(""); // 一旦删除可以尝试重置错误信息
+            } catch (err) { console.error(err); }
+        });
     };
 
     const handleBackClick = () => {
         if (articleId) { navigate(-1); return; } // 已发文修订一般不适用草稿弹窗直接退
         const currentContent = vditorObj ? vditorObj.getValue() : '';
-        if(!title.trim() && !currentContent.trim()) {
+        if (!title.trim() && !currentContent.trim()) {
             navigate('/');
             return;
         }
@@ -67,19 +78,19 @@ export default function Editor() {
         const content = vditorObj ? vditorObj.getValue() : '';
         try {
             await axios.post('/api/drafts/', {
-                title, content, tags: tags.join(','), category: solveForId ? 'solution' : category, target_id: solveForId || null
+                title, content, code_template: codeTemplate, tags: tags.join(','), category: solveForId ? 'solution' : category, target_id: solveForId || null
             }, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
-            if(triggerExit) navigate('/');
+            if (triggerExit) navigate('/');
             else {
-                alert("保存成功");
+                macAlert("您的这篇草稿已经隐秘挂载同步网盘。", "存档稳固");
                 fetchDrafts();
                 setShowExitPrompt(false);
             }
-        } catch(err) {
-            if(err.response?.status === 400) {
+        } catch (err) {
+            if (err.response?.status === 400) {
                 setDraftError(err.response.data.detail);
             } else {
-                alert("保存失败！请检查连线。");
+                macAlert("存档动作遭遇物理拦截，请排查深层网络链条。", "连接切断");
             }
         }
     };
@@ -87,15 +98,24 @@ export default function Editor() {
 
     useEffect(() => {
         if (articleId) {
-            axios.get(`/api/articles/${articleId}`).then(res => {
+            axios.get(`/api/articles/${articleId}`)
+            .catch(err => {
+                // [穿透逻辑]：如果因为靶标屏蔽墙（代码类题库不允许走常规世界路由）报 404，直接使用暗网高速特供通道重拉一波
+                if (err.response && err.response.status === 404) {
+                    return axios.get(`/api/articles/code/${articleId}`);
+                }
+                throw err;
+            })
+            .then(res => {
                 const data = res.data;
                 document.title = `编修: ${data.title} - RewardHacking`;
                 setTitle(data.title);
                 setCategory(data.category);
                 if (data.tags) setTags(data.tags.split(',').filter(Boolean));
+                if (data.code_template) setCodeTemplate(data.code_template);
                 setInitialContent(data.content);
             }).catch(err => {
-                console.error("加载旧文稿失败", err);
+                console.error("双通道加载旧文稿均失败或没有权限", err);
                 navigate('/');
             });
         } else {
@@ -178,152 +198,154 @@ export default function Editor() {
         // 延后 50ms 初始化，让 loading 动画先流畅播放几帧，避免 Vditor 同步阻塞冻住画面
         let vditor = null;
         const timerId = setTimeout(() => {
-        vditor = new Vditor('vditor-container', {
-            // 让卡片脱离固定限制，像一张真实的无限画轴一样随内容向下撑大
-            height: 'auto',
-            minHeight: window.innerHeight - 220, // 兜底最低高度
-            mode: 'ir', // ir 为 Typora 级即时渲染模式
-            placeholder: '开始沉浸式的所见即所得执笔...',
-            toolbarConfig: {
-                pin: true,
-            },
-            cache: {
-                enable: false,
-            },
-            // 修改原生工具栏，精简掉花哨没用的按钮
-            toolbar: [
-                'headings', 'bold', 'italic', 'strike', '|',
-                'line', 'quote', 'list', 'ordered-list', 'check', '|',
-                'code', 'inline-code', 'table', 'link', 'upload', '|',
-                'undo', 'redo', 'fullscreen', 'edit-mode'
-            ],
-            upload: {
-                accept: 'image/*',
-                url: '/api/upload/image',
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem('access_token')}`
+            vditor = new Vditor('vditor-container', {
+                // [断网隔离锁] - 严防由于 Vditor 高亮、图标加载失败造成的全局假死崩溃
+                cdn: '/vendor/vditor',
+                // 让卡片脱离固定限制，像一张真实的无限画轴一样随内容向下撑大
+                height: 'auto',
+                minHeight: window.innerHeight - 220, // 兜底最低高度
+                mode: 'ir', // ir 为 Typora 级即时渲染模式
+                placeholder: '开始沉浸式的所见即所得执笔...',
+                toolbarConfig: {
+                    pin: true,
                 },
-                
-                // 【启动暗网抓捕器】识别到任意剪贴板外链图或网页图档，直接封包发往后台！
-                linkToImgUrl: '/api/upload/fetch_image',
-                linkToImgFormat(responseText) {
-                    // 后台已经配合该引擎规矩定制了绝对适配的回传体，咱们直接装死丢给它就行
-                    let res;
-                    try { 
-                        res = JSON.parse(responseText); 
-                    } catch (e) { 
-                        return JSON.stringify({ msg: '无法解包远端走私数据', code: 1 });
-                    }
-                    return responseText; 
+                cache: {
+                    enable: false,
                 },
-                format(files, responseText) {
-                    // 解析后端传回的 {"url": "..."} 并喂给 vditor 原生的成功回显表
-                    let res = {};
-                    try { res = JSON.parse(responseText); } catch (e) { }
-                    return JSON.stringify({
-                        msg: '',
-                        code: 0,
-                        data: {
-                            errFiles: [],
-                            succMap: { [res.filename || files[0].name]: res.url }
+                // 修改原生工具栏，精简掉花哨没用的按钮
+                toolbar: [
+                    'headings', 'bold', 'italic', 'strike', '|',
+                    'line', 'quote', 'list', 'ordered-list', 'check', '|',
+                    'code', 'inline-code', 'table', 'link', 'upload', '|',
+                    'undo', 'redo', 'fullscreen', 'edit-mode'
+                ],
+                upload: {
+                    accept: 'image/*',
+                    url: '/api/upload/image',
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('access_token')}`
+                    },
+
+                    // 【启动暗网抓捕器】识别到任意剪贴板外链图或网页图档，直接封包发往后台！
+                    linkToImgUrl: '/api/upload/fetch_image',
+                    linkToImgFormat(responseText) {
+                        // 后台已经配合该引擎规矩定制了绝对适配的回传体，咱们直接装死丢给它就行
+                        let res;
+                        try {
+                            res = JSON.parse(responseText);
+                        } catch (e) {
+                            return JSON.stringify({ msg: '无法解包远端走私数据', code: 1 });
                         }
-                    });
+                        return responseText;
+                    },
+                    format(files, responseText) {
+                        // 解析后端传回的 {"url": "..."} 并喂给 vditor 原生的成功回显表
+                        let res = {};
+                        try { res = JSON.parse(responseText); } catch (e) { }
+                        return JSON.stringify({
+                            msg: '',
+                            code: 0,
+                            data: {
+                                errFiles: [],
+                                succMap: { [res.filename || files[0].name]: res.url }
+                            }
+                        });
+                    },
+                    error(msg) { macAlert(msg, "渲染引力异常"); }
                 },
-                error(msg) { alert(msg); }
-            },
-            after: () => {
-                // =============== 💉[知乎专属杀毒剂：纯本地护航] ===============
-                // 知乎特供图文混排会导致公式彻底炸裂和无端换行，咱们直接在它触碰 Vditor 核心前进行拦截。
-                const irContainer = document.querySelector('.vditor-ir');
-                if (irContainer) {
-                    irContainer.addEventListener('paste', (e) => {
-                        const html = e.clipboardData.getData('text/html');
-                        // 鹰眼侦测：如果捕捉到类似知乎等带有隐藏 data-tex 的污染型公式 DOM 时（普通网页不触发）
-                        if (html && html.includes('data-tex="')) {
-                            // 直接切断 Vditor 原本那糟糕透顶的防备，由我们全权接管这一次外科手术式的粘贴！
-                            e.preventDefault();
-                            e.stopPropagation();
+                after: () => {
+                    // =============== 💉[知乎专属杀毒剂：纯本地护航] ===============
+                    // 知乎特供图文混排会导致公式彻底炸裂和无端换行，咱们直接在它触碰 Vditor 核心前进行拦截。
+                    const irContainer = document.querySelector('.vditor-ir');
+                    if (irContainer) {
+                        irContainer.addEventListener('paste', (e) => {
+                            const html = e.clipboardData.getData('text/html');
+                            // 鹰眼侦测：如果捕捉到类似知乎等带有隐藏 data-tex 的污染型公式 DOM 时（普通网页不触发）
+                            if (html && html.includes('data-tex="')) {
+                                // 直接切断 Vditor 原本那糟糕透顶的防备，由我们全权接管这一次外科手术式的粘贴！
+                                e.preventDefault();
+                                e.stopPropagation();
 
-                            const parser = new DOMParser();
-                            const doc = parser.parseFromString(html, 'text/html');
+                                const parser = new DOMParser();
+                                const doc = parser.parseFromString(html, 'text/html');
 
 
 
-                            // 抢救一：抓去所有的知乎公式伪装块，强制剥去伪装皮，挖出绝对纯净的 LaTeX 真血！！
-                            doc.querySelectorAll('[data-tex]').forEach(node => {
-                                let tex = node.getAttribute('data-tex');
-                                if (!tex) return;
+                                // 抢救一：抓去所有的知乎公式伪装块，强制剥去伪装皮，挖出绝对纯净的 LaTeX 真血！！
+                                doc.querySelectorAll('[data-tex]').forEach(node => {
+                                    let tex = node.getAttribute('data-tex');
+                                    if (!tex) return;
 
-                                // 1. 斩去冗余：拔除开头或结尾可能带有的知乎脏美元符号或空格
-                                tex = tex.replace(/^[\s$]+|[\s$]+$/g, '');
+                                    // 1. 斩去冗余：拔除开头或结尾可能带有的知乎脏美元符号或空格
+                                    tex = tex.replace(/^[\s$]+|[\s$]+$/g, '');
 
-                                // 2. 回归经典+终极边界隔离：Vditor 底层 Lute 引擎如果不吃带有特殊属性的 HTML（会被过滤器抛弃变源码），
-                                // 我们就直接给它喂原汁原味的 Markdown 的 $ 和 $$！
-                                // 核心奥义：在 $ 前后强制注入一个普通空格和零宽连字符（零宽空格易阻断）\u200B ，强制让该公式与任何周围的汉字、标点绝缘！
-                                if (tex.includes('\n') || node.classList.contains('ztext-math_block')) {
-                                    // 块级公式必须由换行符隔离
-                                    node.outerHTML = `\n\n$$\n${tex}\n$$\n\n`;
-                                } else {
-                                    // 行内公式：必须使用外部空格包裹！不允许任何标点贴贴！
-                                    node.outerHTML = ` \u200B$${tex}$\u200B `;
-                                }
-                            });
+                                    // 2. 回归经典+终极边界隔离：Vditor 底层 Lute 引擎如果不吃带有特殊属性的 HTML（会被过滤器抛弃变源码），
+                                    // 我们就直接给它喂原汁原味的 Markdown 的 $ 和 $$！
+                                    // 核心奥义：在 $ 前后强制注入一个普通空格和零宽连字符（零宽空格易阻断）\u200B ，强制让该公式与任何周围的汉字、标点绝缘！
+                                    if (tex.includes('\n') || node.classList.contains('ztext-math_block')) {
+                                        // 块级公式必须由换行符隔离
+                                        node.outerHTML = `\n\n$$\n${tex}\n$$\n\n`;
+                                    } else {
+                                        // 行内公式：必须使用外部空格包裹！不允许任何标点贴贴！
+                                        node.outerHTML = ` \u200B$${tex}$\u200B `;
+                                    }
+                                });
 
-                            // 抢救二：知乎甚至会藏一些没用的、捣乱的不可见 span
-                            doc.querySelectorAll('.invisible').forEach(node => node.remove());
+                                // 抢救二：知乎甚至会藏一些没用的、捣乱的不可见 span
+                                doc.querySelectorAll('.invisible').forEach(node => node.remove());
 
-                            // 抢救三：斩断“吸血百科词条”！知乎会在专业词汇上自动强加带 SVG 图标的知识链接
-                            // 这会导致复制出来的 Markdown 出现恐怖的换行和断裂。直接拔掉只留纯净文本！
-                            doc.querySelectorAll('a').forEach(a => {
-                                if (a.href && (a.href.includes('zhida.zhihu.com') || a.classList.contains('internal'))) {
-                                    const cleanText = a.textContent.trim();
-                                    const textNode = doc.createTextNode(cleanText);
-                                    a.parentNode.replaceChild(textNode, a);
-                                }
-                            });
+                                // 抢救三：斩断“吸血百科词条”！知乎会在专业词汇上自动强加带 SVG 图标的知识链接
+                                // 这会导致复制出来的 Markdown 出现恐怖的换行和断裂。直接拔掉只留纯净文本！
+                                doc.querySelectorAll('a').forEach(a => {
+                                    if (a.href && (a.href.includes('zhida.zhihu.com') || a.classList.contains('internal'))) {
+                                        const cleanText = a.textContent.trim();
+                                        const textNode = doc.createTextNode(cleanText);
+                                        a.parentNode.replaceChild(textNode, a);
+                                    }
+                                });
 
-                            // 抢救四（大哥查漏补缺的极地救援！）：
-                            // 因为咱们刚才把原生粘贴过程一刀切断了，原生引擎对外网图片的“洗白”管道由于没触发自动下线。
-                            // 在这里必须为它单独开个后门，手动找出所有被缴获来的外网图片，一并扔向服务器！！
-                            doc.querySelectorAll('img').forEach(img => {
-                                let src = img.getAttribute('src') || '';
-                                // 如果发现非咱们本地的正经图，或者带有各种防盗链大长串的知乎防盗图
-                                if (src.startsWith('http') && !src.includes('/api/static/images')) {
-                                    // 开启地下黑市快车直连
-                                    axios.post('/api/upload/fetch_image', { url: src }, {
-                                        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
-                                    }).then(resp => {
-                                        if(resp.data && resp.data.code === 0) {
-                                            const newLocalUrl = resp.data.data.url;
-                                            // 图片运回来是异步的，编辑器可能还在动。我们在真实的地盘上使用动态射杀替换原来的赃物！
-                                            const editorDOM = document.querySelector('.vditor-ir');
-                                            if (editorDOM) {
-                                                editorDOM.querySelectorAll(`img[src="${src}"]`).forEach(node => {
-                                                    node.setAttribute('src', newLocalUrl);
-                                                });
+                                // 抢救四（大哥查漏补缺的极地救援！）：
+                                // 因为咱们刚才把原生粘贴过程一刀切断了，原生引擎对外网图片的“洗白”管道由于没触发自动下线。
+                                // 在这里必须为它单独开个后门，手动找出所有被缴获来的外网图片，一并扔向服务器！！
+                                doc.querySelectorAll('img').forEach(img => {
+                                    let src = img.getAttribute('src') || '';
+                                    // 如果发现非咱们本地的正经图，或者带有各种防盗链大长串的知乎防盗图
+                                    if (src.startsWith('http') && !src.includes('/api/static/images')) {
+                                        // 开启地下黑市快车直连
+                                        axios.post('/api/upload/fetch_image', { url: src }, {
+                                            headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
+                                        }).then(resp => {
+                                            if (resp.data && resp.data.code === 0) {
+                                                const newLocalUrl = resp.data.data.url;
+                                                // 图片运回来是异步的，编辑器可能还在动。我们在真实的地盘上使用动态射杀替换原来的赃物！
+                                                const editorDOM = document.querySelector('.vditor-ir');
+                                                if (editorDOM) {
+                                                    editorDOM.querySelectorAll(`img[src="${src}"]`).forEach(node => {
+                                                        node.setAttribute('src', newLocalUrl);
+                                                    });
+                                                }
                                             }
-                                        }
-                                    }).catch(err => {
-                                        console.error('拦截知乎图档送下洗白失败', err);
-                                    });
-                                }
-                            });
+                                        }).catch(err => {
+                                            console.error('拦截知乎图档送下洗白失败', err);
+                                        });
+                                    }
+                                });
 
-                            // 重新利用浏览器的底牌，强行把解过毒的干净 HTML 插回编辑靶心
-                            // Vditor 后置的 MutationObserver 将顺滑无比地消化掉这些不带刺的结构
-                            let finalHtml = doc.body.innerHTML;
-                            // 大道至简：直接在准备丢给编辑器的最后一行 HTML 源码里加上物理空格！
-                            finalHtml = finalHtml.replace(/\$([^\$\n<>]+?)\$/g, ' $ $1 $ ');
-                            document.execCommand('insertHTML', false, finalHtml);
-                        }
-                    }, true); // 抢占最高级捕获权，先斩后奏
+                                // 重新利用浏览器的底牌，强行把解过毒的干净 HTML 插回编辑靶心
+                                // Vditor 后置的 MutationObserver 将顺滑无比地消化掉这些不带刺的结构
+                                let finalHtml = doc.body.innerHTML;
+                                // 大道至简：直接在准备丢给编辑器的最后一行 HTML 源码里加上物理空格！
+                                finalHtml = finalHtml.replace(/\$([^\$\n<>]+?)\$/g, ' $ $1 $ ');
+                                document.execCommand('insertHTML', false, finalHtml);
+                            }
+                        }, true); // 抢占最高级捕获权，先斩后奏
+                    }
+                    // ====================================================================
+
+                    setIsEditorReady(true);
+                    setVditorObj(vditor);
                 }
-                // ====================================================================
-
-                setIsEditorReady(true);
-                setVditorObj(vditor);
-            }
-        });
+            });
         }, 50); // setTimeout 闭合
 
         // 核心护法神技重启：延时封印外挂！
@@ -364,14 +386,15 @@ export default function Editor() {
 
     const handlePublish = async () => {
         const content = vditorObj ? vditorObj.getValue() : '';
-        if (!title.trim() || !content.trim()) return alert("标题和正文内容不能为空。");
+        if (!title.trim() || !content.trim()) return macAlert("发布需要物质基础，您的标题或正文处于真空状态。", "内容缺失");
 
         setIsPublishing(true);
         try {
             const payload = {
-                title, 
-                content, 
-                category: solveForId ? 'solution' : category, 
+                title,
+                content,
+                code_template: codeTemplate,
+                category: solveForId ? 'solution' : category,
                 visibility: 'public',
                 tags: tags.join(',') // 将零碎的宝石封印装箱寄出
             };
@@ -387,11 +410,19 @@ export default function Editor() {
             }
             navigate(solveForId ? `/codeplay/${solveForId}` : '/');
         } catch (err) {
-            alert(err.response?.data?.detail || "文章发布失败，请检查您的网络或权限。");
+            macAlert(err.response?.data?.detail || "文章发射阶段遭遇风切变，发布未遂，请检查权限令牌或网络。", "发射阻断");
         } finally {
             setIsPublishing(false);
         }
     };
+
+    const layoutExtensions = {
+        code: <CodeLayout codeTemplate={codeTemplate} setCodeTemplate={setCodeTemplate} />,
+        interview: <InterviewLayout />,
+        knowledge: <KnowledgeLayout />
+    };
+    const ExtensionPanel = !solveForId ? layoutExtensions[category] : null;
+    const needsDualScreen = category === 'code' && !solveForId;
 
     return (
         <div className="zhi-app">
@@ -412,15 +443,20 @@ export default function Editor() {
                                 {isDraftDropdownOpen && (
                                     <div className="mac-dropdown-menu" style={{ width: '260px', right: 0 }}>
                                         {drafts.length === 0 ? (
-                                            <div style={{ padding: '12px', fontSize: '13px', color: '#86868B', textAlign: 'center' }}>暂无草稿</div>
+                                            <div style={{ padding: '16px', fontSize: '13px', color: '#86868B', textAlign: 'center' }}>暂无历史草稿</div>
                                         ) : (
                                             drafts.map(d => (
-                                                <div key={d.id} className="mac-dropdown-item" onClick={() => handleApplyDraft(d)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                                                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#1D1D1F', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{d.title || '无标题草稿'}</span>
-                                                        <span style={{ fontSize: '11px', color: '#86868B' }}>{d.updated_at}</span>
+                                                <div key={d.id} className="mac-draft-item" onClick={() => handleApplyDraft(d)}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', paddingRight: '12px' }}>
+                                                        <span className="draft-title">{d.title || '无标题草稿'}</span>
+                                                        <span className="draft-time">{d.updated_at}</span>
                                                     </div>
-                                                    <button onClick={(e) => handleDeleteDraft(e, d.id)} style={{ background: 'transparent', border: 'none', color: '#FF5F56', cursor: 'pointer', fontSize: '12px', padding: '4px' }}>删除</button>
+                                                    <button className="draft-delete-btn" onClick={(e) => handleDeleteDraft(e, d.id)} title="彻底删除此草稿">
+                                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                        </svg>
+                                                    </button>
                                                 </div>
                                             ))
                                         )}
@@ -481,13 +517,13 @@ export default function Editor() {
                         style={{ width: '100%', background: 'transparent' }}
                     />
                 </div>
-                    
+
                 {/* Apple 级动态感应标签引擎容器！完全脱离前者的包裹，置于主隔断横轴之下 */}
                 <div className="mac-tags-container" style={{ marginBottom: '16px' }}>
                     {tags.map((tag, idx) => (
                         <TagPill key={idx} text={tag} onRemove={removeTag} />
                     ))}
-                    
+
                     {/* 圆圈+号按钮与小微型输入框的变身逻辑 */}
                     {tags.length < 10 && !isTagInputVisible && (
                         <button className="mac-tag-add-btn" onClick={() => setIsTagInputVisible(true)} aria-label="增加标签">
@@ -495,8 +531,8 @@ export default function Editor() {
                         </button>
                     )}
                     {tags.length < 10 && isTagInputVisible && (
-                        <input 
-                            className="mac-tag-input-small" 
+                        <input
+                            className="mac-tag-input-small"
                             autoFocus
                             placeholder="输入并回车"
                             value={tagInput}
@@ -505,34 +541,50 @@ export default function Editor() {
                             onBlur={handleTagBlur}
                         />
                     )}
-                    
+
                     {tags.length === 10 && <span className="mac-tag-limit-msg">最多 10 条，已满舱</span>}
                 </div>
 
-                {/* Apple UI 级顶级内嵌微交互：极度流畅的云端纸飞机风洞实验！ */}
-                {!isEditorReady && (
-                    <div className="mac-editor-loading">
-                        <div className="plane-voyage-box">
-                            {/* 呼啸后退的高速气流条（纯视觉营造流线速度感） */}
-                            <div className="air-stream stream-1"></div>
-                            <div className="air-stream stream-2"></div>
-                            <div className="air-stream stream-3"></div>
-
-                            {/* 代表着信息传递、创作输出与飞翔极简速度的定制 SVG 航班 */}
-                            <svg className="mac-svg-plane" viewBox="0 0 24 24" fill="none" stroke="#007AFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M22 2L11 13" />
-                                <path d="M22 2L15 22L11 13L2 9L22 2Z" fill="rgba(0, 122, 255, 0.05)" />
-                            </svg>
+                {/* 这里的布局分叉的顶层包装器 */}
+                <div style={{ position: 'relative', minHeight: '500px' }}>
+                    {/* 全局 Loading 层：等待核心引擎完全着陆前，涵盖整个多屏创作矩阵 */}
+                    {!isEditorReady && (
+                        <div className="mac-editor-loading" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10, background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '160px' }}>
+                            <div className="plane-voyage-box">
+                                <div className="air-stream stream-1"></div>
+                                <div className="air-stream stream-2"></div>
+                                <div className="air-stream stream-3"></div>
+                                <svg className="mac-svg-plane" viewBox="0 0 24 24" fill="none" stroke="#007AFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M22 2L11 13" />
+                                    <path d="M22 2L15 22L11 13L2 9L22 2Z" fill="rgba(0, 122, 255, 0.05)" />
+                                </svg>
+                            </div>
+                            <span style={{ marginTop: '28px', color: '#8E8E93', fontSize: '14px', fontWeight: '500', letterSpacing: '0.02em' }}>正在为您构建高维创作大厅...</span>
                         </div>
-                        <span style={{ marginTop: '28px', color: '#8E8E93', fontSize: '14px', fontWeight: '500', letterSpacing: '0.02em' }}>正在加载中...</span>
+                    )}
+
+                    {/* 实景大厅：通过透明度的压制，迫使其在后端引擎没有就位时完全噤声，并在启动瞬间联动左右屏共同淡雅降维出场！ */}
+                    <div style={{ 
+                        display: needsDualScreen ? 'flex' : 'block', 
+                        gap: '24px', 
+                        alignItems: 'stretch',
+                        opacity: isEditorReady ? 1 : 0, 
+                        transition: 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+                        pointerEvents: isEditorReady ? 'auto' : 'none'
+                    }}>
+                        {/* 左侧主体 */}
+                        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+                            {/* 彻底摆脱 UIW 的幽灵，由 Vditor 接管渲染 */}
+                            <div id="vditor-container" className={`mac-vditor-override ${isEditorReady ? 'ready' : ''}`}></div>
+
+                            {/* 游龙果冻追尾光标 */}
+                            <JellyCaret editorReady={isEditorReady} />
+                        </div>
+
+                        {/* 后期多路拓展插件区 (解耦抽离的渲染层) */}
+                        {ExtensionPanel}
                     </div>
-                )}
-
-                {/* 彻底摆脱 UIW 的幽灵，由 Vditor 接管渲染 */}
-                <div id="vditor-container" className={`mac-vditor-override ${isEditorReady ? 'ready' : ''}`}></div>
-
-                {/* 🌌 游龙果冻追尾光标 — 当编辑器就绪后挂载，隐藏原生光标并接管渲染 */}
-                <JellyCaret editorReady={isEditorReady} />
+                </div>
             </div>
 
             {showExitPrompt && (
@@ -542,9 +594,9 @@ export default function Editor() {
                         <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#86868B', lineHeight: 1.5 }}>
                             当前内容尚未保存，退出将丢失更改。
                         </p>
-                        
+
                         {draftError && <div style={{ color: '#FF5F56', fontSize: '13px', marginBottom: '16px', padding: '10px', background: 'rgba(255,95,86,0.1)', borderRadius: '8px' }}>{draftError}</div>}
-                        
+
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                             <button onClick={() => handleSaveDraft(true)} style={{ padding: '10px', border: 'none', background: '#0071E3', color: '#FFF', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>保存草稿并退出</button>
                             <button onClick={() => navigate('/')} style={{ padding: '10px', border: '1px solid #FF5F56', background: 'transparent', color: '#FF5F56', borderRadius: '8px', cursor: 'pointer', fontWeight: 500 }}>不保存退出</button>

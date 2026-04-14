@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import MacModal from '../components/MacModal';
+import { macAlert, macConfirm } from '../components/MacModal';
 import TagPill from '../components/TagPill';
 
 export default function Dashboard() {
     const [articles, setArticles] = useState([]);
     const [activeTab, setActiveTab] = useState(sessionStorage.getItem('dashboard_tab') || 'knowledge');
     const [user, setUser] = useState(null);
-    // 高级弹窗机制接管原生 confirm
-    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [transitionPhase, setTransitionPhase] = useState('idle');
+    const pendingTabRef = useRef(null);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -44,33 +44,47 @@ export default function Dashboard() {
             try {
                 const res = await axios.get(`/api/articles/?category=${activeTab}`);
                 setArticles(res.data);
+                requestAnimationFrame(() => setTransitionPhase('fading-in'));
+                // 动态计算：等所有卡片动画播完再切 idle（stagger * 卡片数 + 单卡动画时长）
+                const cardCount = res.data.length;
+                const totalMs = Math.min(cardCount, 8) * 70 + 380;
+                setTimeout(() => setTransitionPhase('idle'), totalMs);
             } catch (err) {
-                console.error("数据加载失败:", err);
+                console.error('data fetch failed:', err);
+                setTransitionPhase('idle');
             }
         };
         fetchArticles();
     }, [activeTab]);
 
-    // 第一步：触发警戒弹窗而不是生硬开杀
-    const handleDeleteClick = (id) => {
-        setDeleteConfirmId(id);
-    };
+    const handleTabSwitch = useCallback((tab) => {
+        if (tab === activeTab || transitionPhase !== 'idle') return;
+        pendingTabRef.current = tab;
+        setTransitionPhase('fading-out');
+        setTimeout(() => {
+            setActiveTab(pendingTabRef.current);
+        }, 180);
+    }, [activeTab, transitionPhase]);
 
-    // 第二步：用户在弹窗中坚决确认，开始行刑
-    const executeDelete = async () => {
-        if (!deleteConfirmId) return;
-        setIsDeleting(true);
-        try {
-            await axios.delete(`/api/articles/${deleteConfirmId}`, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
-            });
-            setArticles(prev => prev.filter(a => a.id !== deleteConfirmId));
-            setDeleteConfirmId(null);
-        } catch (err) {
-            alert(err.response?.data?.detail || "删除失败，您可能没有足够的权限。");
-        } finally {
-            setIsDeleting(false);
-        }
+    // 触发并直接通过闭包调用行刑
+    const handleDeleteClick = (id) => {
+        macConfirm(
+            "不可挽回的消除动作", 
+            "您即将要把这篇文章从数据库的深渊中彻底抹除，包括它的标签和一切信息，此操作无可挽回。确定要继续吗？",
+            async () => {
+                setIsDeleting(true);
+                try {
+                    await axios.delete(`/api/articles/${id}`, {
+                        headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
+                    });
+                    setArticles(prev => prev.filter(a => a.id !== id));
+                } catch (err) {
+                    macAlert(err.response?.data?.detail || "无法摧毁目标文件，您可能没有越权权限。", "抹除失败");
+                } finally {
+                    setIsDeleting(false);
+                }
+            }
+        );
     };
 
     return (
@@ -84,13 +98,31 @@ export default function Dashboard() {
                         </div>
                         Reward<span style={{ color: '#0071E3' }}>Hacking</span>
                     </div>
-                    <nav className="zhi-nav" style={{ flexShrink: 0, display: 'flex', whiteSpace: 'nowrap' }}>
+                    <nav className="zhi-nav" style={{ flexShrink: 0, display: 'flex', position: 'relative', whiteSpace: 'nowrap', gap: 0, alignItems: 'center', paddingLeft: '4px' }}>
+                        {/* 🌟 磁悬浮魔击靶游标（恢复紧身形态并极度放缓动画） 🌟 */}
+                        <div style={{
+                            position: 'absolute', top: '50%', marginTop: '-16px', left: '4px',
+                            width: '58px', height: '32px',
+                            transform: `translateX(${['knowledge', 'interview', 'code'].indexOf(activeTab) * 58}px)`,
+                            background: 'rgba(0,0,0,0.06)',
+                            borderRadius: '12px',
+                            /* Apple 标准丝滑缓动：无过冲，从容优雅 */
+                            transition: 'transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1)',
+                            zIndex: 0
+                        }}></div>
+
                         {['knowledge', 'interview', 'code'].map(tab => (
                             <div 
                                 key={tab} 
-                                className={`zhi-nav-item ${activeTab === tab ? 'active' : ''}`}
-                                onClick={() => setActiveTab(tab)}
-                                style={{ whiteSpace: 'nowrap' }}
+                                className="zhi-nav-item"
+                                onClick={() => handleTabSwitch(tab)}
+                                style={{ 
+                                    whiteSpace: 'nowrap', width: '58px', height: '32px', padding: 0, margin: 0,
+                                    display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1,
+                                    fontWeight: activeTab === tab ? 600 : 500,
+                                    color: activeTab === tab ? '#1D1D1F' : '#86868B',
+                                    transition: 'color 0.2s', background: 'transparent'
+                                }}
                             >
                                 {tab === 'knowledge' ? '知识' : tab === 'interview' ? '面经' : '代码'}
                             </div>
@@ -121,11 +153,12 @@ export default function Dashboard() {
             </header>
 
             <main className="zhi-main-layout">
-                <div className="zhi-feed">
+                {/* Apple 级丝滑过渡容器 */}
+                <div className={`zhi-feed zhi-feed--${transitionPhase}`}>
                     {articles.length === 0 ? (
                         <div className="zhi-empty">暂无文章，点击上方“创作”发布第一篇。</div>
                     ) : (
-                        articles.map(a => {
+                        articles.map((a, idx) => {
                             // 动态渲染预处理层
                             const tagsArr = a.tags ? a.tags.split(',').filter(Boolean) : [];
                             const displayTags = tagsArr.slice(0, 5);
@@ -138,7 +171,10 @@ export default function Dashboard() {
                                 <div key={a.id} className="zhi-feed-card" onClick={() => {
                                     if (a.category === 'code') navigate(`/codeplay/${a.id}`);
                                     else navigate(`/article/${a.id}`);
-                                }} style={{cursor: 'pointer'}}>
+                                }} style={{
+                                    cursor: 'pointer',
+                                    animationDelay: `${idx * 0.07}s`,
+                                }}>
                                     <h2 className="zhi-card-title">{a.title}</h2>
                                     <div className="zhi-card-excerpt">
                                         {a.content.substring(0, 180)}...
@@ -180,18 +216,6 @@ export default function Dashboard() {
                     </div>
                 </aside>
             </main>
-
-            {/* Apple 级全局玻璃弹窗警戒网 (Mac Danger Modal) 组件层抽取接驳 */}
-            <MacModal 
-                isOpen={!!deleteConfirmId}
-                title="不可挽回的消除动作"
-                desc="您即将要把这篇文章从数据库的深渊中彻底抹除，包括它的标签和一切信息，此操作无可挽回。确定要继续吗？"
-                confirmText={isDeleting ? '正在湮灭...' : '确认销毁'}
-                cancelText="安然撤退"
-                onConfirm={executeDelete}
-                onCancel={() => setDeleteConfirmId(null)}
-                isProcessing={isDeleting}
-            />
         </div>
     );
 }

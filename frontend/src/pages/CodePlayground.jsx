@@ -4,6 +4,14 @@ import axios from 'axios';
 import ErrorPage from './ErrorPage';
 import ThreadZone from '../components/ThreadZone';
 import TagPill from '../components/TagPill';
+import { macAlert, macConfirm } from '../components/MacModal';
+import CodeMirror from '@uiw/react-codemirror';
+import { python } from '@codemirror/lang-python';
+import { vscodeDark } from '@uiw/codemirror-theme-vscode';
+import { autocompletion } from '@codemirror/autocomplete';
+import { indentUnit } from '@codemirror/language';
+import { leetcodeCompletionSource } from '../utils/leetcodeCompletions';
+
 const Vditor = window.Vditor;
 
 // 题解弹窗内嵌编辑器
@@ -35,8 +43,19 @@ export default function CodePlayground() {
     const navigate = useNavigate();
     
     const [article, setArticle] = useState(null);
+    const [user, setUser] = useState(null);
     const [isError, setIsError] = useState(false);
     const [codeContent, setCodeContent] = useState("");
+    
+    // 初始化登录身份嗅探
+    useEffect(() => {
+        const token = localStorage.getItem('access_token');
+        if(token) {
+            axios.get('/api/users/me', { headers: { Authorization: `Bearer ${token}` } })
+                 .then(res => setUser(res.data))
+                 .catch(() => {});
+        }
+    }, []);
     
     // Pyodide Core
     const [leftTab, setLeftTab] = useState('description');
@@ -65,29 +84,28 @@ export default function CodePlayground() {
     const fetchSolutionDrafts = () => {
         const token = localStorage.getItem('access_token');
         if(!token) return;
-        axios.get('/api/drafts?category=solution', { headers: { Authorization: `Bearer ${token}` } })
+        axios.get('/api/drafts/?category=solution', { headers: { Authorization: `Bearer ${token}` } })
              .then(res => setSolutionDrafts(res.data)).catch(console.error);
     };
 
-    // 生命周期挂载：只在进入沙盒时试图唤醒休眠的代码实体，拉取题解草稿池
-    useEffect(() => {
+    // 原生被废除：这里现在合并到下方统一通过 Promise.all 决断生命周期
+    const fetchDraftLogic = () => {
         const token = localStorage.getItem('access_token');
-        if(!token) return;
-        axios.get(`/api/drafts?category=code&target_id=${id}`, { headers: { Authorization: `Bearer ${token}` } })
-            .then(res => {
-                if(res.data && res.data.length > 0 && res.data[0].content) {
-                    setCodeContent(res.data[0].content);
-                    const tm = res.data[0].updated_at;
-                    setLastSavedTime(tm.includes(' ') ? tm.split(' ')[1] : tm);
-                }
-            }).catch(() => {});
-        fetchSolutionDrafts();
-    }, [id]);
+        if(!token) return Promise.resolve(null);
+        return axios.get(`/api/drafts/?category=code&target_id=${id}&_t=${Date.now()}`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(res => (res.data && res.data.length > 0) ? res.data[0] : null)
+            .catch(() => null);
+    };
 
-    // 生命周期挂载：无缝每秒心跳固化盘 (5s 一轮回)
+    // 生命周期挂载：最新一代【复合防抖光速存档盘】
     useEffect(() => {
         if(!codeContent || codeContent === "# Write your code here" || codeContent.trim() === '') return;
-        const timer = setInterval(() => {
+        
+        // 【维度一】：毫秒级极速本地落盘，绝不动用网路通道资源
+        localStorage.setItem(`RH_AutoSave_${id}`, codeContent);
+
+        // 【维度二】：感知型无缝静默防抖 (Debounce 2秒)，打字不断不发，一旦停下立马捕获云端
+        const timer = setTimeout(() => {
             const token = localStorage.getItem('access_token');
             setIsAutosaving(true);
             axios.post('/api/drafts/', {
@@ -98,8 +116,10 @@ export default function CodePlayground() {
                 setLastSavedTime(tm.includes(' ') ? tm.split(' ')[1] : tm);
             })
             .catch(console.error).finally(()=>setIsAutosaving(false));
-        }, 5000);
-        return () => clearInterval(timer);
+        }, 2000); 
+
+        // 数据变动产生的组件再次执行将会摧毁上一轮还没来得及走完的 timer，达成防抖锁闭环
+        return () => clearTimeout(timer);
     }, [codeContent, id]);
 
     // ========= [题解弹窗的草稿防御机制] =========
@@ -121,30 +141,31 @@ export default function CodePlayground() {
             }, { headers: { Authorization: `Bearer ${token}` } });
             fetchSolutionDrafts();
             if(triggerClose) { setShowSolutionExitPrompt(false); setShowSolutionModal(false); }
-            else alert("保存成功");
+            else macAlert("您的战报手稿已同步至基地，未发布前请妥善保留。", "保存成功");
         } catch(err) {
-            alert(err.response?.data?.detail || "保护失败，底层链路断绝");
+            macAlert(err.response?.data?.detail || "保护失败，终端失去与总部的深层网路联系！", "核心警报");
         }
     };
 
     const handleApplySolutionDraft = (d) => {
-        if(!window.confirm("确定用它覆盖你当下的输入吗？")) return;
-        setSolutionTitle(d.title);
-        if(solutionVditor) solutionVditor.setValue(d.content);
-        setIsSolDraftOpen(false);
+        macConfirm("覆写警告", "确定用它覆盖你当下的输入吗？此时未保存的工作将会被清洗。", () => {
+            setSolutionTitle(d.title);
+            if(solutionVditor) solutionVditor.setValue(d.content);
+            setIsSolDraftOpen(false);
+        });
     };
 
-    const handleDeleteSolutionDraft = async (e, draft_id) => {
+    const handleDeleteSolutionDraft = (e, draft_id) => {
         e.stopPropagation();
-        try {
-            await axios.delete(`/api/drafts/${draft_id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
-            fetchSolutionDrafts();
-        } catch(err) {}
+        macConfirm("高危抹除", "目标镜像即将被物理分解且无法通过终端逆向找回，执行此令？", async () => {
+            try {
+                await axios.delete(`/api/drafts/${draft_id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
+                fetchSolutionDrafts();
+            } catch(err) {}
+        });
     };
 
     const previewRef = useRef(null);
-    const lineNumbersRef = useRef(null);
-    const handleScroll = (e) => { if (lineNumbersRef.current) { lineNumbersRef.current.scrollTop = e.target.scrollTop; } };
 
     // [LeetCode 级物理滑轨引擎]
     const [leftWidth, setLeftWidth] = useState(35);
@@ -181,21 +202,45 @@ export default function CodePlayground() {
         document.body.style.userSelect = 'none';
     };
 
-    // 1. 获取文章题目数据并渲染左侧
+    // 1. 获取文章题目数据并结合靶场打卡草稿统一裁决初值
     useEffect(() => {
-        axios.get(`/api/articles/code/${id}`).then(res => {
-            document.title = `${res.data.title} - RewardHacking`;
-            setArticle(res.data);
-            if (previewRef.current && Vditor) {
-                Vditor.preview(previewRef.current, res.data.content, {
+        const articlePromise = axios.get(`/api/articles/code/${id}`).then(res => res.data);
+        
+        Promise.all([fetchDraftLogic(), articlePromise]).then(([draft, articleData]) => {
+            document.title = `${articleData.title} - RewardHacking`;
+            setArticle(articleData);
+            if (previewRef.current && window.Vditor) {
+                window.Vditor.preview(previewRef.current, articleData.content, {
                     theme: { current: 'light' },
-                    hljs: { style: 'github' } // 代码题目侧维持极简
+                    hljs: { style: 'github' } 
                 });
             }
+            
+            // 【终极裁决】：绝不由于闭包覆盖，草稿至上，模板保底。
+            const localFallback = localStorage.getItem(`RH_AutoSave_${id}`);
+            
+            if (draft && draft.content) {
+                if(localFallback && localFallback.length > draft.content.length) {
+                     setCodeContent(localFallback);
+                     setLastSavedTime("已恢复本地未同步记录");
+                } else {
+                     setCodeContent(draft.content);
+                     const tm = draft.updated_at;
+                     setLastSavedTime(tm.includes(' ') ? tm.split(' ')[1] : tm);
+                }
+            } else if (localFallback) {
+                setCodeContent(localFallback);
+                setLastSavedTime("已恢复本地记录");
+            } else {
+                setCodeContent(articleData.code_template || "# Write your code here\n");
+            }
         }).catch(err => {
-            console.error("查题失败:", err);
+            console.error("查题或恢复草稿失败:", err);
             setIsError(true);
         });
+
+        // 题解弹层草稿可以顺便异步拉取
+        fetchSolutionDrafts();
     }, [id, navigate]);
 
         useEffect(() => {
@@ -220,17 +265,18 @@ export default function CodePlayground() {
                 if (!window.loadPyodide) {
                     await new Promise((resolve, reject) => {
                         const script = document.createElement('script');
-                        script.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js';
+                        // 强制截回内网资源，不再让系统忍受数十兆跨洋调取的死亡迟滞
+                        script.src = '/vendor/pyodide/pyodide.js';
                         script.async = true;
                         script.onload = resolve;
-                        script.onerror = () => reject(new Error("CDN 挂载异常"));
+                        script.onerror = () => reject(new Error("本地引擎文件损毁或挂载异常"));
                         document.body.appendChild(script);
                     });
                 }
                 
                 // 接管全局黑体输出管道 (注意这里的执行输出不换行，直接抛回)
                 const pyodideInstance = await window.loadPyodide({
-                    indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/",
+                    indexURL: "/vendor/pyodide/",
                     stdout: (text) => setTerminalOutput(prev => prev + text + '\n'),
                     stderr: (text) => setTerminalOutput(prev => prev + '[ERROR] ' + text + '\n')
                 });
@@ -289,7 +335,7 @@ export default function CodePlayground() {
     const handlePublishSolution = async () => {
         if (!solutionVditor) return;
         const content = solutionVditor.getValue();
-        if (!solutionTitle.trim() || !content.trim()) return alert('标题和内容不能为空。');
+        if (!solutionTitle.trim() || !content.trim()) return macAlert('请注入您的实战名号以及完整的核心代码流。', '真空警报');
         setIsPublishingSolution(true);
         try {
             const payload = { title: solutionTitle, content, category: 'solution', visibility: 'public', tags: '' };
@@ -303,10 +349,24 @@ export default function CodePlayground() {
             setLeftTab('solutions');
         } catch (err) {
             const detail = err.response?.data?.detail;
-            alert(typeof detail === 'string' ? detail : (JSON.stringify(detail) || '发布失败'));
+            macAlert(typeof detail === 'string' ? detail : (JSON.stringify(detail) || '靶场战报同步核心基站失败。'), "传输溃败");
         } finally {
             setIsPublishingSolution(false);
         }
+    };
+
+    // 权限制裁集成 (补齐丢失的物理消除权限)
+    const hasAdminRights = user && article && (user.role === 'admin' || user.id === article.author_id);
+    const handleDeleteClick = () => {
+        macConfirm("不可挽回的消除动作", "您即将要把这道题设从题库及靶场的深渊中彻底抹除，包括它的标签、草稿和一切信息，此操作无可挽回。确定要继续吗？", async () => {
+            try {
+                await axios.delete(`/api/articles/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
+                navigate('/');
+            } catch (error) {
+                console.error("执行毁损动作失败：", error);
+                macAlert(error.response?.data?.detail || "无法摧毁靶标，您可能越权或网络不稳。", "抹除失败");
+            }
+        });
     };
 
     // 4. 定制纯血 TextArea 支持软 Tab (2 spaces) 及缩进锁定
@@ -337,7 +397,27 @@ export default function CodePlayground() {
                             {article?.title || '加载题目...'}
                         </span>
                     </nav>
-                    <div className="zhi-actions">
+                    <div className="zhi-actions" style={{ display: 'flex', alignItems: 'center' }}>
+                        {hasAdminRights && (
+                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginRight: '24px' }}>
+                                <span 
+                                    className="mac-top-icon-btn" 
+                                    title="修编本版" 
+                                    style={{ cursor: 'pointer', color: '#86868B', display: 'flex', alignItems: 'center' }} 
+                                    onClick={() => navigate('/editor?id=' + article.id)}
+                                >
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                                </span>
+                                <span 
+                                    className="mac-top-icon-btn mac-danger-btn" 
+                                    title="物理消除该题目" 
+                                    style={{ cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center' }} 
+                                    onClick={handleDeleteClick}
+                                >
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                </span>
+                            </div>
+                        )}
                         <button 
                             onClick={executeCode} 
                             disabled={isPyodideLoading || isExecuting}
@@ -438,7 +518,7 @@ export default function CodePlayground() {
                                             <span>阅读 {viewingSolution.views_count}</span>
                                             <span>讨论 {viewingSolution.comments_count}</span>
                                         </div>
-                                        <div id="solution-preview-container" className="vditor-reset" style={{ fontSize: '14px', flexShrink: 0 }}></div>
+                                        <div id="solution-preview-container" className="vditor-reset" style={{ fontSize: '14px', flexShrink: 0, paddingBottom: '160px' }}></div>
                                         {/* 隔离式的局部微生态评论区挂载 */}
                                         <div style={{ marginTop: '40px', paddingTop: '24px', borderTop: '1px solid #E5E7EB', flexShrink: 0 }}>
                                             <ThreadZone 
@@ -501,25 +581,30 @@ export default function CodePlayground() {
                         </div>
                     </div>
 
-                    <div style={{ flex: 6, position: 'relative', display: 'flex', borderBottom: '1px solid #161616' }}>
-                        {/* 左侧幽境引航员：原生动态行号机 */}
-                        <div ref={lineNumbersRef} style={{ width: '45px', background: '#1E1E1E', padding: '24px 0', textAlign: 'center', color: '#5C6370', fontSize: '14px', fontFamily: 'SFMono-Regular, Consolas, monospace', userSelect: 'none', lineHeight: '1.6', overflow: 'hidden', flexShrink: 0 }}>
-                            {Array.from({length: Math.max(1, codeContent.split('\n').length)}, (_, i) => i + 1).map(n => <div key={n} style={{ height: '22.4px' }}>{n}</div>)}
-                        </div>
-                        {/* 深空级纯文字磁悬浮操作板 (TextArea) */}
-                        <textarea 
+                    <div style={{ flex: 6, position: 'relative', borderBottom: '1px solid #161616', overflow: 'hidden' }}>
+                        {/* 极简化核心解析大盘：CodeMirror 原盘挂载，断除虚假行号魔改 */}
+                        <CodeMirror
                             value={codeContent}
-                            onChange={(e) => setCodeContent(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            onScroll={handleScroll}
-                            spellCheck={false}
-                            placeholder="# Write your code here"
-                            style={{
-                                flex: 1, padding: '24px 20px', background: 'transparent',
-                                color: '#D4D4D4', fontSize: '14px', fontFamily: 'SFMono-Regular, Consolas, monospace',
-                                border: 'none', outline: 'none', resize: 'none',
-                                lineHeight: '1.6', whiteSpace: 'pre', overflowWrap: 'normal', overflowX: 'auto',
-                                letterSpacing: '0.5px'
+                            height="100%"
+                            theme={vscodeDark}
+                            extensions={[
+                                python(), 
+                                autocompletion({ override: [leetcodeCompletionSource] }),
+                                indentUnit.of("    ")
+                            ]}
+                            onChange={(val) => setCodeContent(val)}
+                            style={{ 
+                                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, 
+                                fontSize: '14.5px', fontFamily: '"SF Mono", "Fira Code", Consolas, monospace'
+                            }}
+                            basicSetup={{
+                                autocompletion: true, // 核心驱动点火
+                                tabSize: 4,                  
+                                lineNumbers: true,           
+                                foldGutter: false,           
+                                highlightActiveLine: false,   
+                                highlightActiveLineGutter: false, 
+                                indentOnInput: true          
                             }}
                         />
                     </div>
@@ -570,14 +655,19 @@ export default function CodePlayground() {
                                     </span>
                                     {isSolDraftOpen && (
                                         <div style={{position: 'absolute', top: '28px', left: 0, width: '220px', background: '#FFF', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', border: '1px solid #EDEDF2', zIndex: 100, overflow: 'hidden'}}>
-                                            {solutionDrafts.length === 0 ? <div style={{padding: '16px', color: '#86868B', fontSize: '12px', textAlign: 'center'}}>暂无草稿</div> :
+                                            {solutionDrafts.length === 0 ? <div style={{padding: '24px 16px', color: '#86868B', fontSize: '13px', textAlign: 'center'}}>您还没有缓存过的题解</div> :
                                                 solutionDrafts.map(d => (
-                                                    <div key={d.id} className="mac-dropdown-item" onClick={() => handleApplySolutionDraft(d)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', cursor: 'pointer', borderBottom: '1px solid #F0F0F5' }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                                                            <span style={{ fontSize: '13px', fontWeight: 600, color: '#1D1D1F', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{d.title || '无标题草稿'}</span>
-                                                            <span style={{ fontSize: '10px', color: '#86868B' }}>{d.updated_at}</span>
+                                                    <div key={d.id} className="mac-draft-item" onClick={() => handleApplySolutionDraft(d)} style={{ margin: '4px 8px' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', paddingRight: '12px' }}>
+                                                            <span className="draft-title">{d.title || '无标题战报'}</span>
+                                                            <span className="draft-time">{d.updated_at}</span>
                                                         </div>
-                                                        <button onClick={(e) => handleDeleteSolutionDraft(e, d.id)} style={{ background: 'transparent', border: 'none', color: '#FF5F56', cursor: 'pointer', fontSize: '12px' }}>删除</button>
+                                                        <button className="draft-delete-btn" onClick={(e) => handleDeleteSolutionDraft(e, d.id)} title="彻底删除此草稿">
+                                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <polyline points="3 6 5 6 21 6"></polyline>
+                                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                            </svg>
+                                                        </button>
                                                     </div>
                                                 ))
                                             }

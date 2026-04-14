@@ -5,7 +5,7 @@ import ErrorPage from './ErrorPage';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import TagPill from '../components/TagPill';
-import MacModal from '../components/MacModal';
+import { macAlert, macConfirm } from '../components/MacModal';
 import ThreadZone from '../components/ThreadZone';
 
 // 骨架屏炫光占位层
@@ -43,9 +43,7 @@ export default function ArticleDetail() {
     // 渲染系统相关状态
     const [outline, setOutline] = useState([]);
     const [isOutlineVisible, setIsOutlineVisible] = useState(true);
-        const [isMainContentReady, setIsMainContentReady] = useState(false); // 核心防止 Vditor 并发死锁标识
-    const [deleteConfirmId, setDeleteConfirmId] = useState(null);
-    const [isDeleting, setIsDeleting] = useState(false);
+    const [isMainContentReady, setIsMainContentReady] = useState(false); // 核心防止 Vditor 并发死锁标识
     
     
     useEffect(() => {
@@ -142,19 +140,16 @@ export default function ArticleDetail() {
     
     
     // 删除体系集成
-    const handleDeleteClick = () => setDeleteConfirmId(id);
-    const executeDelete = async () => {
-        setIsDeleting(true);
-        try {
-            await axios.delete(`/api/articles/${deleteConfirmId}`);
-            setDeleteConfirmId(null);
-            navigate('/'); // 消灭完毕后立刻强行退回母阵列
-        } catch (error) {
-            console.error("执行毁损动作失败：", error);
-            setDeleteConfirmId(null);
-        } finally {
-            setIsDeleting(false);
-        }
+    const handleDeleteClick = () => {
+        macConfirm("不可挽回的消除动作", "您即将要把这篇文章从数据库的深渊中彻底抹除，包括它的标签和一切信息，此操作无可挽回。确定要继续吗？", async () => {
+            try {
+                await axios.delete(`/api/articles/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
+                navigate('/'); // 消灭完毕后立刻强行退回母阵列
+            } catch (error) {
+                console.error("执行毁损动作失败：", error);
+                macAlert(error.response?.data?.detail || "无法摧毁目标文件，您可能没有越权权限。", "抹除失败");
+            }
+        });
     };
 
     if (!article) return (
@@ -246,7 +241,7 @@ export default function ArticleDetail() {
                             transform: isOutlineVisible ? 'translateX(0)' : 'translateX(-10px)'
                         }}
                     >
-                        <h4>文档导视</h4>
+                        <h4>大纲</h4>
                         {outline.length > 0 ? (
                             <ul className="mac-outline-list">
                                 {outline.map((item, idx) => (
@@ -272,7 +267,7 @@ export default function ArticleDetail() {
                         <h1 className="mac-article-title">{article.title}</h1>
                         <div className="mac-article-meta-ribbon">
                             <div className="mac-article-meta-left">
-                                <span className="category-meta">{article.category === 'knowledge' ? '知识' : article.category === 'interview' ? '面经' : '代码'}</span>
+                                {article.category === 'code' && <span className="category-meta">代码</span>}
                                 {tagsArr.length > 0 && tagsArr.map((t, idx) => <TagPill key={idx} text={t} />)}
                             </div>
                             <div className="mac-article-meta-right">
@@ -301,17 +296,6 @@ export default function ArticleDetail() {
                     )}
                 </article>
             </main>
-
-            <MacModal 
-                isOpen={!!deleteConfirmId}
-                title="不可挽回的消除动作"
-                desc="您即将要把这篇文章从数据库的深渊中彻底抹除，包括它的标签和一切信息，此操作无可挽回。确定要继续吗？"
-                confirmText={isDeleting ? '正在湮灭...' : '确认销毁'}
-                cancelText="安然撤退"
-                onConfirm={executeDelete}
-                onCancel={() => setDeleteConfirmId(null)}
-                isProcessing={isDeleting}
-            />
         </div>
     );
 }

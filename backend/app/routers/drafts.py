@@ -5,14 +5,15 @@ from typing import List, Optional
 from ..database import get_db
 from ..models import Draft, User, CategoryEnum, get_current_time
 from ..schemas import DraftCreate, DraftOut
-from .auth import get_current_user
+from ..auth import get_current_user
 
-router = APIRouter(prefix="/drafts", tags=["Drafts"])
+router = APIRouter(prefix="/api/drafts", tags=["Drafts"])
 
 @router.get("/", response_model=List[DraftOut])
 def get_drafts(
     category: Optional[CategoryEnum] = None,
     target_id: Optional[str] = None,
+    only_standalone: bool = False,
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
@@ -21,6 +22,11 @@ def get_drafts(
         query = query.filter(Draft.category == category)
     if target_id:
         query = query.filter(Draft.target_id == target_id)
+    
+    # 【隔离区】仅拉取“独立文章”性质的草稿，断绝那些被强关联在某具体文章下的靶场/记录型碎片
+    if only_standalone:
+        query = query.filter(Draft.target_id.is_(None))
+
     # 按更新时间倒序，最新的在最上面
     return query.order_by(Draft.updated_at.desc()).all()
 
@@ -31,10 +37,8 @@ def create_or_upsert_draft(
     db: Session = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    # 【特殊拦截槽】：代码靶场的专用逻辑
-    if draft_in.category == CategoryEnum.code:
-        if not draft_in.target_id:
-            raise HTTPException(status_code=400, detail="代码草稿必须关联目标题目 ID")
+    # 【特殊拦截槽】：代码靶场的专用逻辑 (仅针对带有目标 ID 的，即真正靶场内解题的草稿)
+    if draft_in.category == CategoryEnum.code and draft_in.target_id:
         
         # 寻找本题下我的历史代码草稿
         existing = db.query(Draft).filter(
@@ -58,10 +62,11 @@ def create_or_upsert_draft(
         db.refresh(new_draft)
         return new_draft
 
-    # 【常规弹夹上限审核机制】：知识/面经/题解 只能存 5 份
+    # 【常规弹夹上限审核机制】：知识/面经/题解 只能存 5 份（且必须是不带 target_id 独立存储的正经草稿）
     count = db.query(Draft).filter(
         Draft.user_id == current_user.id, 
-        Draft.category == draft_in.category
+        Draft.category == draft_in.category,
+        Draft.target_id.is_(None)
     ).count()
     if count >= 5:
         # 直接阻断异常，抛回给前端弹窗要求清理
@@ -88,6 +93,7 @@ def update_draft(
         
     draft.title = draft_in.title
     draft.content = draft_in.content
+    draft.code_template = draft_in.code_template
     draft.tags = draft_in.tags
     draft.updated_at = get_current_time()
     db.commit()

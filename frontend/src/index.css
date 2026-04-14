@@ -1,5 +1,4 @@
-/* 全局极简高定淡蓝色系 (Ice Blue Minimalist) */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+/* 全局极简高定淡蓝色系 (Ice Blue Minimalist) /* 阻断警告：已永久剥离境外的 Google Fonts 吸血拉取，系统直接接管底层字库 */
 
 :root {
     --primary-bg: #F0F6FF;
@@ -23,10 +22,18 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     background: #F6F6F6;
-    /* 知乎经典极简灰底板 */
     color: #121212;
     overflow-x: hidden;
     min-height: 100vh;
+}
+
+/* 全平台视场首启时的化影凝结出像特效 */
+@keyframes page-fade-reveal {
+    from { opacity: 0; transform: translateY(6px) scale(0.995); filter: blur(4px); }
+    to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+.zhi-app, .mac-reading-room, .auth-wrapper {
+    animation: page-fade-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 
@@ -379,23 +386,27 @@ body {
     cursor: pointer;
     font-weight: 500;
     box-shadow: 0 2px 8px rgba(0, 113, 227, 0.2);
-    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: center;
 }
 
 .zhi-btn-primary:hover:not(:disabled) {
     transform: scale(1.02);
     background: #0077ED;
-    box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3);
+    box-shadow: 0 6px 16px rgba(0, 113, 227, 0.35);
 }
 
 .zhi-btn-primary:active:not(:disabled) {
-    transform: scale(0.96);
+    transform: scale(0.95);
+    box-shadow: 0 1px 4px rgba(0, 113, 227, 0.2);
+    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .zhi-btn-primary:disabled {
     opacity: 0.5;
     box-shadow: none;
     cursor: not-allowed;
+    transform: none;
 }
 
 .zhi-user-actions {
@@ -471,12 +482,14 @@ body {
     padding: 24px 28px;
     display: flex;
     flex-direction: column;
-    transition: box-shadow 0.3s cubic-bezier(0.2, 0, 0, 1), transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+    /* 加入极强延展性的 Apple 级弹簧渐近动画曲线 */
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .zhi-feed-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    transform: translateY(-4px);
+    /* 构建拥有深远 Z 轴的三维毛玻璃漫反射阴影 */
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 .zhi-card-title {
@@ -675,11 +688,30 @@ body {
     border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
     padding: 0px 10px !important;
     min-height: 36px !important;
-    /* 强制拉低底线 */
+    
+    /* 解决双屏模式下空间受挤压导致的按钮折行脱落问题 */
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    align-items: center !important;
+    white-space: nowrap !important;
+    scrollbar-width: none; /* Firefox */
+}
+
+/* 隐藏横向滚动条保留清爽干净界面 */
+.vditor-toolbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* 截断所有预设的逻辑物理分行元素 */
+.vditor-toolbar__br {
+    display: none !important;
 }
 
 /* 斩底线：将内部所有把框架撑起来的肥胖按钮一并降维打薄 */
 .vditor-toolbar__item {
+    float: none !important; /* 剿灭上个时代原生的 float 布局 */
+    flex-shrink: 1 !important;
     height: 28px !important;
     line-height: 28px !important;
     padding: 0 6px !important;
@@ -923,17 +955,28 @@ body {
     transform: rotate(180deg);
 }
 
-/* 毛玻璃弹射展开面板层（无死角遮盖与丝滑透光） */
+/* 毛玻璃弹射展开面板层（极其深邃的无死角遮盖与丝滑透光） */
+@keyframes mac-dropdown-pop {
+    0% { opacity: 0; transform: scaleY(0.9) translateY(-4px); }
+    100% { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+
 .mac-dropdown-menu {
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
     width: 110%;
     min-width: 130px;
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    /* 加强反差并降低色感浊度 */
+    background: rgba(255, 255, 255, 0.70);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    padding: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.03);
+    transform-origin: top center;
+    animation: mac-dropdown-pop 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     border-radius: 10px;
     box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
     /* 立体高亮微切边 */
@@ -1175,19 +1218,20 @@ body {
 .mac-modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(17, 24, 39, 0.4);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    /* 将原生黑色改写为透叠环境光的浓烈物理毛玻璃掩体 */
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 99999;
-    animation: mac-modal-fade-in 0.2s ease forwards;
+    animation: mac-modal-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes mac-modal-fade-in {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
+    0% { opacity: 0; backdrop-filter: blur(0px) saturate(100%); }
+    100% { opacity: 1; backdrop-filter: blur(12px) saturate(180%); }
 }
 
 .mac-modal-box {
@@ -1200,11 +1244,13 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    animation: mac-modal-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    /* 更柔顺贴近原生弹簧质感的抛体下落模型 */
+    animation: mac-modal-pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes mac-modal-pop {
-    0% { transform: scale(0.85) translateY(20px); opacity: 0; }
+    0% { transform: scale(0.9) translateY(12px); opacity: 0; }
+    50% { transform: scale(1.02); opacity: 1; }
     100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
@@ -1310,7 +1356,7 @@ body {
 /* ========================================================
    极客阅读室组件区 (Mac Reading Room / ArticleDetail) 
 ======================================================== */
-.mac-reading-room { background-color: #FBFBFD; min-height: 100vh; padding-bottom: 80px; }
+.mac-reading-room { background-color: #FBFBFD; min-height: 100vh; padding-top: 70px; padding-bottom: 80px; }
 .mac-reading-back { color: #424245; font-size: 15px; font-weight: 500; cursor: pointer; transition: color 0.2s; }
 .mac-reading-back:hover { color: #0071E3; }
 .mac-reader-layout { max-width: 1200px; margin: 40px auto 0; display: flex; align-items: flex-start; gap: 40px; padding: 0 20px; }
@@ -1331,7 +1377,7 @@ body {
 .mac-article-admin-actions { display: flex; gap: 12px; background: #F5F5F7; padding: 12px 16px; border-radius: 12px; margin-bottom: 30px; }
 .mac-edit-btn { background: #FFFFFF; border: 1px solid rgba(0,0,0,0.1); color: #1D1D1F; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
 .mac-edit-btn:hover { border-color: #0071E3; color: #0071E3; }
-.mac-markdown-stream { font-size: 16px; line-height: 1.8; color: #1D1D1F; }
+.mac-markdown-stream { font-size: 16px; line-height: 1.8; color: #1D1D1F; padding-bottom: 160px; }
 .mac-comments-zone { background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); padding: 24px; }
 .mac-comments-zone h3 { font-size: 18px; font-weight: 600; color: #1D1D1F; margin-bottom: 24px; }
 .mac-comment-trigger { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-bottom: 20px; }
@@ -1348,18 +1394,32 @@ body {
 .mac-comment-time { font-size: 12px; color: #86868B; }
 .mac-comment-text { font-size: 15px; color: #424245; line-height: 1.6; }
 @media (max-width: 1000px) { .mac-reader-outline { display: none; } }
-/* 骨架屏炫光动效体系 */
-@keyframes mac-shimmer {
-  0% { background-position: -1000px 0; }
-  100% { background-position: 1000px 0; }
+/* 骨架屏炫光动效体系：重制版 - 高速冷白金属拉丝切割掠过特效 */
+@keyframes mac-shimmer-sweep {
+  0% { transform: translateX(-150%); }
+  100% { transform: translateX(150%); }
 }
 
 .skeleton-pulse {
-  background: #f6f7f8;
-  background-image: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 1000px 100%;
-  animation: mac-shimmer 2s infinite linear;
+  position: relative;
+  overflow: hidden;
+  background: #F2F2F7; /* 脱离死板的灰，使用更亮的骨料底层 */
   border-radius: 4px;
+}
+
+.skeleton-pulse::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.9) 50%,
+    transparent 65%,
+    transparent 100%
+  );
+  animation: mac-shimmer-sweep 1.6s infinite linear;
 }
 
 .mac-skeleton-title {
@@ -1690,6 +1750,387 @@ body {
     /* 评论列表间距 */
     .mac-comments-stream {
         gap: 10px !important;
+    }
+}
+
+/* ================= 🍎 顶级质感：定制草稿箱专属列表项 ================= */
+.mac-draft-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    border: 1px solid transparent;
+    margin: 4px 6px;
+}
+
+.mac-draft-item:last-child {
+    margin-bottom: 4px;
+}
+
+.mac-draft-item:hover {
+    background: #F5F5F7;
+    border-color: rgba(0,0,0,0.03);
+}
+
+.mac-draft-item .draft-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1D1D1F;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    transition: color 0.15s;
+}
+
+.mac-draft-item:hover .draft-title {
+    color: #0071E3;
+}
+
+.mac-draft-item .draft-time {
+    font-size: 11px;
+    color: #86868B;
+    margin-top: 3px;
+    letter-spacing: 0.3px;
+}
+
+.mac-draft-item .draft-delete-btn {
+    opacity: 0;
+    transform: scale(0.9);
+    background: transparent;
+    border: none;
+    color: #FF5F56;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 6px;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.mac-draft-item:hover .draft-delete-btn {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.mac-draft-item .draft-delete-btn:hover {
+    background: rgba(255, 95, 86, 0.1);
+    transform: scale(1.05);
+}
+
+/* ================= 🍎 全局命令式 Mac 原生弹窗引擎 ================= */
+.mac-native-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: mac-fade-in 0.25s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.mac-native-modal-box {
+    background: #FFFFFF;
+    width: 380px;
+    max-width: 90vw;
+    border-radius: 18px;
+    padding: 32px 28px 28px;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2), 0 0 1px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    animation: mac-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 离场动画钩子 */
+.mac-fade-out {
+    animation: mac-fade-out 0.2s cubic-bezier(0.2, 0, 0, 1) forwards !important;
+}
+.mac-pop-out {
+    animation: mac-scale-out 0.2s cubic-bezier(0.2, 0, 0, 1) forwards !important;
+}
+
+.mac-modal-title {
+    margin: 0 0 12px 0;
+    font-size: 19px;
+    font-weight: 700;
+    color: #1D1D1F;
+    letter-spacing: -0.01em;
+}
+
+.mac-modal-desc {
+    margin: 0 0 28px 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #6E6E73;
+}
+
+.mac-modal-actions-dual {
+    display: flex;
+    gap: 12px;
+}
+
+.mac-modal-actions-single {
+    display: flex;
+    justify-content: center;
+}
+
+.mac-btn-cancel {
+    flex: 1;
+    padding: 10px 0;
+    background: #F5F5F7;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1D1D1F;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.mac-btn-cancel:hover {
+    background: #E5E5EA;
+}
+
+.mac-btn-danger {
+    flex: 1;
+    padding: 10px 0;
+    background: #FF3B30;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #FFF;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.mac-btn-danger:hover {
+    background: #D70015;
+}
+
+.mac-btn-primary-alert {
+    width: 60%;
+    padding: 10px 0;
+    background: #0071E3;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #FFF;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.mac-btn-primary-alert:hover {
+    background: #0077ED;
+}
+
+@keyframes mac-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes mac-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+@keyframes mac-pop-in {
+    0% { opacity: 0; transform: scale(0.85) translateY(10px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes mac-scale-out {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.95); }
+}
+
+
+/* ===============================================================
+   CodeMirror autocomplete 弹出菜单的 Apple Mac 质感装甲级重塑
+=============================================================== */
+
+/* 重塑主悬浮面板底座：启用深色系极高质感亚力克毛玻璃背板 */
+.cm-tooltip.cm-tooltip-autocomplete {
+    background-color: rgba(30, 30, 32, 0.85) !important;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.2) !important;
+    overflow: hidden !important;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif !important;
+    padding: 6px !important; /* 给内部上下预留呼吸边距 */
+}
+
+/* 列表载体去原生丑陋样式 */
+.cm-tooltip-autocomplete > ul {
+    font-family: "SF Mono", "Menlo", "Consolas", monospace !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-height: 250px !important;
+}
+
+/* 菜单项基础形态 */
+.cm-tooltip-autocomplete > ul > li {
+    padding: 5px 12px !important;
+    border-radius: 6px !important;
+    font-size: 13.5px !important;
+    color: #E2E2E6 !important;
+    transition: all 0.05s ease;
+    margin-bottom: 2px !important;
+    display: flex !important;
+    align-items: center !important;
+    cursor: pointer !important;
+}
+
+/* 消除最后的空白位 */
+.cm-tooltip-autocomplete > ul > li:last-child {
+    margin-bottom: 0 !important;
+}
+
+/* 清除原生 Win 风格蓝色背景，替换为苹果经典选取高亮 (原生蓝色) 抑或深空反白 */
+.cm-tooltip-autocomplete > ul > li[aria-selected] {
+    background-color: #007AFF !important;
+    color: #FFFFFF !important;
+    box-shadow: 0 1px 3px rgba(0, 122, 255, 0.3) !important;
+}
+
+/* 鼠标悬停时的弱高亮（如果有鼠标移动触发） */
+.cm-tooltip-autocomplete > ul > li:hover:not([aria-selected]) {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 左侧小图标 (比如那个极度复古的黄色钥匙 🔑 和 t 等等) 净化脱脂 */
+.cm-tooltip-autocomplete > ul > li .cm-completionIcon {
+    width: 16px !important;
+    height: 16px !important;
+    line-height: 16px !important;
+    font-size: 12px !important;
+    margin-right: 10px !important;
+    opacity: 0.6 !important;
+    text-align: center !important;
+    /* 通过灰白滤镜拔除原有 emoji 的俗气彩色 */
+    filter: grayscale(100%) !important;
+}
+
+/* 对于被选中的项，图标要全白加亮，显得更透彻 */
+.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionIcon {
+    opacity: 1 !important;
+    filter: brightness(200%) grayscale(100%) !important;
+}
+
+/* 命中的匹配字母字重和颜色（比如输入 imp 匹配到的亮色） */
+.cm-completionMatchedText {
+    text-decoration: none !important;
+    font-weight: 700 !important;
+    color: #38BDF8 !important; /* 天蓝色作为亮光点 */
+}
+
+.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionMatchedText {
+    color: #FFFFFF !important;
+}
+
+/* 补全的次要详情字（例如 type 提示） */
+.cm-completionDetail {
+    color: #8E8E93 !important;
+    font-size: 12px !important;
+    font-style: normal !important;
+    margin-left: 12px !important;
+}
+
+.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* 额外的悬浮文档说明框重塑 (若开启文档展示功能) */
+.cm-tooltip.cm-completionInfo {
+    background-color: rgba(40, 40, 42, 0.9) !important;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 10px !important;
+    color: #D4D4D4 !important;
+    padding: 12px !important;
+    font-size: 13px !important;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ===============================================================
+   修复 CodeMirror 折叠行号轨引发的白边、虚线锯齿以及边框冲突
+=============================================================== */
+.cm-editor .cm-gutters {
+    background-color: #1E1E1E !important;
+    border-right: none !important;
+    color: #5C6370 !important;
+}
+
+.cm-editor {
+    outline: none !important;
+    background-color: #1E1E1E !important;
+}
+
+.cm-scroller {
+    background-color: #1E1E1E !important;
+}
+
+/* 隐藏部分系统可能会渲染的滚动条残留白边角 */
+.cm-editor ::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* 强制打穿任何霸道的富文本框架或同层级组件造成的 z-index 遮挡结界 */
+.cm-tooltip.cm-tooltip-autocomplete {
+    z-index: 2147483647 !important; /* 亿级突破 */
+}
+
+/* 同样对详情提示框强制突破 */
+.cm-tooltip.cm-completionInfo {
+    z-index: 2147483647 !important;
+}
+
+/* ============================================
+ * Apple-grade silky tab transition system
+ * ============================================ */
+
+/* Feed container base: smooth fade for tab switching */
+.zhi-feed {
+    transition: opacity 0.18s cubic-bezier(0.25, 0.1, 0.25, 1),
+                transform 0.18s cubic-bezier(0.25, 0.1, 0.25, 1);
+    will-change: opacity, transform;
+}
+
+/* Phase 1: Old content fades out and slides left */
+.zhi-feed--fading-out {
+    opacity: 0;
+    transform: translateX(-20px);
+    pointer-events: none;
+}
+
+/* Phase 2: New cards slide in from right, staggered */
+.zhi-feed--fading-in .zhi-feed-card {
+    opacity: 0;
+    animation: apple-card-slide-in 0.38s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+    /* 禁用 base 的 transform transition，防止和 animation 冲突导致闪跳 */
+    transition: none;
+}
+
+/* Phase 3: Idle state, cards fully visible */
+.zhi-feed--idle .zhi-feed-card {
+    opacity: 1;
+}
+
+/* Card horizontal slide-in: from right to left */
+@keyframes apple-card-slide-in {
+    0% {
+        opacity: 0;
+        transform: translateX(40px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0);
     }
 }
 
