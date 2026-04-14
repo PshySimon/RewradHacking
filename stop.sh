@@ -9,6 +9,7 @@ if [ -f logs/backend.pid ]; then
     # 验证 PID 是否还在运行
     if kill -0 $BACKEND_PID 2>/dev/null; then
         kill $BACKEND_PID
+        pkill -P $BACKEND_PID 2>/dev/null
         echo "✅ 后端服务模块 (PID: $BACKEND_PID) 已收归下线。"
     else
         echo "⚠️ 后端服务模块不在运行阶段（可能已被手动终结）。"
@@ -36,5 +37,13 @@ if [ -f logs/frontend.pid ]; then
 else
     echo "未找到前端守护凭据 (frontend.pid)。"
 fi
+
+# 终极扫尾：强杀 3001 和 3000 避免任何游离的孤儿进程占用端口
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+lsof -ti:3001 | xargs kill -9 2>/dev/null || true
+
+# 睡眠两秒，给操作系统底层网络栈充分的时间释放处于 TIME_WAIT/CLOSE_WAIT 状态的端口
+echo "休眠缓冲，等待系统回收网络端口..."
+sleep 2
 
 echo "=== 项目现已完全处于清净态 ==="
