@@ -2411,3 +2411,25 @@ body {
     box-shadow: 0 1px 2px rgba(255, 212, 38, 0.2);
     font-weight: 500;
 }
+
+/* ========================================================
+   ✨ Apple 质感表格自适应折行优化 (Table Responsive Wrapping)
+======================================================== */
+.mac-vditor-override .vditor-reset table,
+.mac-markdown-stream table,
+.vditor-reset table {
+    width: 100% !important;
+    table-layout: auto !important;
+}
+
+/* 核心：打破 Vditor 原生对于单元格文本 nowrap (强行不换行) 的压制 */
+.mac-vditor-override .vditor-reset table th,
+.mac-vditor-override .vditor-reset table td,
+.mac-markdown-stream table th,
+.mac-markdown-stream table td,
+.vditor-reset table th,
+.vditor-reset table td {
+    white-space: normal !important; 
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+}
