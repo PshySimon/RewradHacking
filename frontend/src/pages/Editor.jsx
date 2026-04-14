@@ -219,6 +219,11 @@ export default function Editor() {
                 cache: {
                     enable: false,
                 },
+                preview: {
+                    markdown: {
+                        mark: true // 开启 ==高亮文本== 语法支持 (<mark> 标签)
+                    }
+                },
                 // 修改原生工具栏，精简掉花哨没用的按钮
                 toolbar: [
                     'headings', 'bold', 'italic', 'strike', '|',

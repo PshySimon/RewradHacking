@@ -2398,4 +2398,16 @@ body {
     box-shadow: 0 6px 16px rgba(0, 113, 227, 0.3);
 }
 
-
+/* ========================================================
+   ✨ Apple 质感高亮语法样式 (Markdown ==高亮==)
+======================================================== */
+.mac-vditor-override .vditor-ir mark,
+.mac-markdown-stream mark,
+.mac-vditor-override .vditor-ir__node--expand mark {
+    background-color: rgba(255, 212, 38, 0.4); /* 苹果备忘录经典柔和暖黄色 */
+    color: #1D1D1F;
+    border-radius: 4px;
+    padding: 2px 4px;
+    box-shadow: 0 1px 2px rgba(255, 212, 38, 0.2);
+    font-weight: 500;
+}
