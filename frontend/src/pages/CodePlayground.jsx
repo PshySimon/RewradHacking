@@ -141,14 +141,14 @@ export default function CodePlayground() {
             }, { headers: { Authorization: `Bearer ${token}` } });
             fetchSolutionDrafts();
             if(triggerClose) { setShowSolutionExitPrompt(false); setShowSolutionModal(false); }
-            else macAlert("您的战报手稿已同步至基地，未发布前请妥善保留。", "保存成功");
+            else macAlert("草稿保存成功，请在发布前妥善保留。", "保存成功");
         } catch(err) {
-            macAlert(err.response?.data?.detail || "保护失败，终端失去与总部的深层网路联系！", "核心警报");
+            macAlert(err.response?.data?.detail || "草稿保存失败：网络连接异常！", "保存失败");
         }
     };
 
     const handleApplySolutionDraft = (d) => {
-        macConfirm("覆写警告", "确定用它覆盖你当下的输入吗？此时未保存的工作将会被清洗。", () => {
+        macConfirm("加载草稿", "确定加载该历史草稿吗？当前未保存的输入将被覆盖。", () => {
             setSolutionTitle(d.title);
             if(solutionVditor) solutionVditor.setValue(d.content);
             setIsSolDraftOpen(false);
@@ -157,7 +157,7 @@ export default function CodePlayground() {
 
     const handleDeleteSolutionDraft = (e, draft_id) => {
         e.stopPropagation();
-        macConfirm("高危抹除", "目标镜像即将被物理分解且无法通过终端逆向找回，执行此令？", async () => {
+        macConfirm("删除确认", "确定要永久删除这篇草稿吗？此操作无法恢复。", async () => {
             try {
                 await axios.delete(`/api/drafts/${draft_id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
                 fetchSolutionDrafts();
@@ -335,13 +335,12 @@ export default function CodePlayground() {
     const handlePublishSolution = async () => {
         if (!solutionVditor) return;
         const content = solutionVditor.getValue();
-        if (!solutionTitle.trim() || !content.trim()) return macAlert('请注入您的实战名号以及完整的核心代码流。', '真空警报');
+        if (!solutionTitle.trim() || !content.trim()) return macAlert('发布失败：标题和代码内容不能为空。', '内容缺失');
         setIsPublishingSolution(true);
         try {
             const payload = { title: solutionTitle, content, category: 'solution', visibility: 'public', tags: '' };
             const config = { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } };
             await axios.post(`/api/articles/code/${id}/solutions`, payload, config);
-            // 刷新题解列表
             const res = await axios.get(`/api/articles/code/${id}/solutions`);
             setSolutions(res.data);
             setShowSolutionModal(false);
@@ -349,7 +348,7 @@ export default function CodePlayground() {
             setLeftTab('solutions');
         } catch (err) {
             const detail = err.response?.data?.detail;
-            macAlert(typeof detail === 'string' ? detail : (JSON.stringify(detail) || '靶场战报同步核心基站失败。'), "传输溃败");
+            macAlert(typeof detail === 'string' ? detail : (JSON.stringify(detail) || '发布失败或网络错误。'), "发布失败");
         } finally {
             setIsPublishingSolution(false);
         }
@@ -410,7 +409,7 @@ export default function CodePlayground() {
                                 </span>
                                 <span 
                                     className="mac-top-icon-btn mac-danger-btn" 
-                                    title="物理消除该题目" 
+                                    title="删除该题目" 
                                     style={{ cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center' }} 
                                     onClick={handleDeleteClick}
                                 >

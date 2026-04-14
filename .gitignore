@@ -1,4 +1,4 @@
-# Python / Backend
+# Python / Backend / Databases
 __pycache__/
 *.py[cod]
 *$py.class
@@ -7,6 +7,10 @@ venv/
 .venv/
 env/
 .env
+*.db
+*.sqlite3
+*.db-shm
+*.db-wal
 
 # Node / Frontend
 node_modules/

@@ -66,11 +66,11 @@ export default function Dashboard() {
         }, 180);
     }, [activeTab, transitionPhase]);
 
-    // 触发并直接通过闭包调用行刑
+    // 触发删除弹窗并执行删除操作
     const handleDeleteClick = (id) => {
         macConfirm(
-            "不可挽回的消除动作", 
-            "您即将要把这篇文章从数据库的深渊中彻底抹除，包括它的标签和一切信息，此操作无可挽回。确定要继续吗？",
+            "确认删除",
+            "确定要永久删除这篇文章吗？此操作无法恢复。",
             async () => {
                 setIsDeleting(true);
                 try {
@@ -79,7 +79,8 @@ export default function Dashboard() {
                     });
                     setArticles(prev => prev.filter(a => a.id !== id));
                 } catch (err) {
-                    macAlert(err.response?.data?.detail || "无法摧毁目标文件，您可能没有越权权限。", "抹除失败");
+                    console.error("删除文章失败:", err);
+                    macAlert(err.response?.data?.detail || "无法删除目标文件，请检查当前操作权限。", "删除失败");
                 } finally {
                     setIsDeleting(false);
                 }

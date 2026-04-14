@@ -139,15 +139,15 @@ export default function ArticleDetail() {
 
     
     
-    // 删除体系集成
+    // 删除文章操作
     const handleDeleteClick = () => {
-        macConfirm("不可挽回的消除动作", "您即将要把这篇文章从数据库的深渊中彻底抹除，包括它的标签和一切信息，此操作无可挽回。确定要继续吗？", async () => {
+        macConfirm("确认删除", "确定要永久删除这篇文章吗？此操作无法恢复。", async () => {
             try {
                 await axios.delete(`/api/articles/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
-                navigate('/'); // 消灭完毕后立刻强行退回母阵列
+                navigate('/'); // 删除完毕后返回首页
             } catch (error) {
-                console.error("执行毁损动作失败：", error);
-                macAlert(error.response?.data?.detail || "无法摧毁目标文件，您可能没有越权权限。", "抹除失败");
+                console.error("删除动作失败：", error);
+                macAlert(error.response?.data?.detail || "无法删除目标文件，请检查当前操作权限。", "删除失败");
             }
         });
     };
@@ -198,7 +198,7 @@ export default function ArticleDetail() {
                                 </span>
                                 <span 
                                     className="mac-top-icon-btn mac-danger-btn" 
-                                    title="物理消除该文章" 
+                                    title="删除该文章" 
                                     style={{ cursor: 'pointer', color: '#EF4444', display: 'flex', alignItems: 'center' }} 
                                     onClick={handleDeleteClick}
                                 >

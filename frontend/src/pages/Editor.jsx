@@ -44,7 +44,7 @@ export default function Editor() {
     }, [category, solveForId]);
 
     const handleApplyDraft = (draft) => {
-        macConfirm("覆盖确认", "确定要用该历史草稿覆盖当前编辑器内的所有内容吗？当前未保存的心血将遗失。", () => {
+        macConfirm("覆盖确认", "确定加载该历史草稿吗？当前编辑器内的未保存内容将被覆盖。", () => {
             setTitle(draft.title);
             if (draft.tags) setTags(draft.tags.split(',').filter(Boolean));
             if (draft.code_template) setCodeTemplate(draft.code_template);
@@ -55,7 +55,7 @@ export default function Editor() {
 
     const handleDeleteDraft = (e, draft_id) => {
         e.stopPropagation();
-        macConfirm("删除危险", "这篇草稿将被永久送入回收站，彻底粉碎不可找回。", async () => {
+        macConfirm("删除确认", "确定要永久删除这篇草稿吗？此操作无法恢复。", async () => {
             try {
                 await axios.delete(`/api/drafts/${draft_id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
                 fetchDrafts();
@@ -82,7 +82,7 @@ export default function Editor() {
             }, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
             if (triggerExit) navigate('/');
             else {
-                macAlert("您的这篇草稿已经隐秘挂载同步网盘。", "存档稳固");
+                macAlert("草稿已成功保存至云端。", "保存成功");
                 fetchDrafts();
                 setShowExitPrompt(false);
             }
@@ -90,7 +90,7 @@ export default function Editor() {
             if (err.response?.status === 400) {
                 setDraftError(err.response.data.detail);
             } else {
-                macAlert("存档动作遭遇物理拦截，请排查深层网络链条。", "连接切断");
+                macAlert("保存草稿失败：网络连接中断。", "网络错误");
             }
         }
     };
@@ -226,10 +226,10 @@ export default function Editor() {
                         Authorization: `Bearer ${localStorage.getItem('access_token')}`
                     },
 
-                    // 【启动暗网抓捕器】识别到任意剪贴板外链图或网页图档，直接封包发往后台！
+                    // 拦截剪贴板外部图片或防盗链图片请求，通过后台转存为本地资源
                     linkToImgUrl: '/api/upload/fetch_image',
                     linkToImgFormat(responseText) {
-                        // 后台已经配合该引擎规矩定制了绝对适配的回传体，咱们直接装死丢给它就行
+                        // 承接后台回传的指定报文格式
                         let res;
                         try {
                             res = JSON.parse(responseText);
@@ -251,7 +251,7 @@ export default function Editor() {
                             }
                         });
                     },
-                    error(msg) { macAlert(msg, "渲染引力异常"); }
+                    error(msg) { macAlert(msg, "渲染组件加载失败"); }
                 },
                 after: () => {
                     // =============== 💉[知乎专属杀毒剂：纯本地护航] ===============
@@ -386,7 +386,7 @@ export default function Editor() {
 
     const handlePublish = async () => {
         const content = vditorObj ? vditorObj.getValue() : '';
-        if (!title.trim() || !content.trim()) return macAlert("发布需要物质基础，您的标题或正文处于真空状态。", "内容缺失");
+        if (!title.trim() || !content.trim()) return macAlert("发布失败：标题和正文不可以为空。", "内容缺失");
 
         setIsPublishing(true);
         try {
@@ -410,7 +410,7 @@ export default function Editor() {
             }
             navigate(solveForId ? `/codeplay/${solveForId}` : '/');
         } catch (err) {
-            macAlert(err.response?.data?.detail || "文章发射阶段遭遇风切变，发布未遂，请检查权限令牌或网络。", "发射阻断");
+            macAlert(err.response?.data?.detail || "文章发布失败，请检查网络状态或操作权限。", "发布失败");
         } finally {
             setIsPublishing(false);
         }
