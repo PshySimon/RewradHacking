@@ -330,45 +330,51 @@ export default function Editor() {
                                 }
                             }
 
-                            // 处理从 IDE 或其他平台复制 Markdown 源码时，由于包含了 HTML 格式
-                            // 导致 Vditor 误认为整体是一大段代码从而错误包裹的问题
-                            if (plainText && /(?:^|\n)```/.test(plainText) && html) {
-                                if (!isInsideCode) {
+                            if (!isInsideCode && plainText) {
+                                let injectPlainText = false;
+
+                                // 1. 拦截从 IDE / 大模型复制全篇源码时，Vditor 会为外层 HTML 强行加上 ``` 的恶性 Bug
+                                if (/(?:^|\n)```/.test(plainText) && html) {
+                                    injectPlainText = true;
+                                }
+
+                                // 2. 修正 AI 模型生成的反常规嵌套 Markdown 格式：将 `**文本**` 纠正为标准的 **`文本`** 
+                                const oldPlain1 = plainText;
+                                plainText = plainText.replace(/`(\*\*|__)(.+?)\1`/g, '$1`$2`$1');
+                                if (plainText !== oldPlain1) {
+                                    injectPlainText = true;
+                                }
+
+                                // 3. 修复外源复制的跨行或带有不规范空格的 LaTeX 公式（自动转接为 $$）
+                                if (plainText.includes('$')) {
+                                    const oldPlain2 = plainText;
+                                    plainText = plainText.replace(/\$([\s\S]+?)\$/g, (match, inner) => {
+                                        // 全局排除包裹了完整代码块的内容，避免 jQuery 代码被误伤
+                                        if (inner.includes('```')) return match;
+                                        
+                                        const hasMathSymbol = inner.includes('\\') || inner.includes('_') || inner.includes('^');
+                                        const hasBasicOp = inner.includes('=') || inner.includes('+') || inner.includes('-') || 
+                                                           inner.includes('*') || inner.includes('/') || inner.includes('<') || inner.includes('>');
+                                        const isMath = hasMathSymbol || (inner.includes('\n') && hasBasicOp);
+                                        
+                                        if (isMath) {
+                                            if (inner.includes('\n')) {
+                                                return `$$\n${inner.trim()}\n$$`;
+                                            } else {
+                                                return `$${inner.trim()}$`;
+                                            }
+                                        }
+                                        return match;
+                                    });
+                                    if (plainText !== oldPlain2) {
+                                        injectPlainText = true;
+                                    }
+                                }
+
+                                if (injectPlainText) {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     if (vditor) vditor.insertValue(plainText);
-                                    return;
-                                }
-                            }
-
-                            // 修复外源复制的跨行或带有不规范空格的 LaTeX 公式（如 $ a $）
-                            // 避免 Vditor 的 HTML 解析导致公式内的下划线等字符被转义
-                            if (plainText && plainText.includes('$') && !isInsideCode) {
-                                let hasMath = false;
-                                
-                                const cleanText = plainText.replace(/\$([\s\S]+?)\$/g, (match, inner) => {
-                                    const hasMathSymbol = inner.includes('\\') || inner.includes('_') || inner.includes('^');
-                                    const hasBasicOp = inner.includes('=') || inner.includes('+') || inner.includes('-') || 
-                                                       inner.includes('*') || inner.includes('/') || inner.includes('<') || inner.includes('>');
-                                    const isMath = hasMathSymbol || (inner.includes('\n') && hasBasicOp);
-                                    
-                                    if (isMath) {
-                                        hasMath = true;
-                                        if (inner.includes('\n')) {
-                                            // 跨多行公式统一改为 $$ 块级公式
-                                            return `$$\n${inner.trim()}\n$$`;
-                                        } else {
-                                            // 单行公式去除头尾空格
-                                            return `$${inner.trim()}$`;
-                                        }
-                                    }
-                                    return match;
-                                });
-
-                                if (hasMath) {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (vditor) vditor.insertValue(cleanText);
                                     return;
                                 }
                             }
