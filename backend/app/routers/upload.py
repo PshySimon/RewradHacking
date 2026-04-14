@@ -70,15 +70,19 @@ def fetch_external_image(
         for attempt in range(max_retries):
             try:
                 # 增强版防护伪装，模拟最真实的浏览器请求
-                req_obj = urllib.request.Request(
-                    image_url, 
-                    headers={
-                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                        'Referer': image_url # 有些图床使用自我引用破解防盗链
-                    }
-                )
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
+                }
+                
+                # 阿里语雀(nlark) 采用了极严的防盗链，若 Referer 为外站（或伪造成自己的 CDN），会被直接 403。
+                # 去除 Referer（模拟用户在浏览器地址栏直接敲击回车或从微信等聊天框点开）是不触发拦截的最佳姿势。
+                # 针对少量必须要求自我引用的老式图床，做后备兼容。
+                if 'nlark.com' not in image_url and 'yuque.com' not in image_url:
+                    headers['Referer'] = image_url
+
+                req_obj = urllib.request.Request(image_url, headers=headers)
                 
                 with urllib.request.urlopen(req_obj, timeout=12.0) as response:
                     content = response.read()
