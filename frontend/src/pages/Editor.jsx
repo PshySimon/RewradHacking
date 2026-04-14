@@ -102,26 +102,26 @@ export default function Editor() {
     useEffect(() => {
         if (articleId) {
             axios.get(`/api/articles/${articleId}`)
-            .catch(err => {
-                // [穿透逻辑]：如果因为靶标屏蔽墙（代码类题库不允许走常规世界路由）报 404，直接使用暗网高速特供通道重拉一波
-                if (err.response && err.response.status === 404) {
-                    return axios.get(`/api/articles/code/${articleId}`);
-                }
-                throw err;
-            })
-            .then(res => {
-                const data = res.data;
-                document.title = `编修: ${data.title} - RewardHacking`;
-                setTitle(data.title);
-                setCategory(data.category);
-                if (data.tags) setTags(data.tags.split(',').filter(Boolean));
-                if (data.code_template) setCodeTemplate(data.code_template);
-                if (data.visibility) setVisibility(data.visibility);
-                setInitialContent(data.content);
-            }).catch(err => {
-                console.error("双通道加载旧文稿均失败或没有权限", err);
-                navigate('/');
-            });
+                .catch(err => {
+                    // [穿透逻辑]：如果因为靶标屏蔽墙（代码类题库不允许走常规世界路由）报 404，直接使用暗网高速特供通道重拉一波
+                    if (err.response && err.response.status === 404) {
+                        return axios.get(`/api/articles/code/${articleId}`);
+                    }
+                    throw err;
+                })
+                .then(res => {
+                    const data = res.data;
+                    document.title = `编修: ${data.title} - RewardHacking`;
+                    setTitle(data.title);
+                    setCategory(data.category);
+                    if (data.tags) setTags(data.tags.split(',').filter(Boolean));
+                    if (data.code_template) setCodeTemplate(data.code_template);
+                    if (data.visibility) setVisibility(data.visibility);
+                    setInitialContent(data.content);
+                }).catch(err => {
+                    console.error("双通道加载旧文稿均失败或没有权限", err);
+                    navigate('/');
+                });
         } else {
             document.title = '创作中心 - RewardHacking';
         }
@@ -320,7 +320,36 @@ export default function Editor() {
                             }
 
                             const html = e.clipboardData.getData('text/html');
-                            
+                            const plainText = e.clipboardData.getData('text/plain');
+
+                            // 🚨 [终极大狙：IDE / 原生 Markdown 源码粘贴被 Vditor HTML 解析器圈禁污染的元凶]
+                            // 现象描述：当用户从 VS Code，或者大模型对话框里直接复制带有 ``` 的全篇 Markdown 源码时，
+                            // 剪贴板中往往会附带格式嵌套极其反人类的 text/html 层（带有各种 <pre> 或 font-family: monospace）。
+                            // Vditor 会将这层渲染外壳当作“代码高亮呈现区域”，从而在首尾加上 ```，把所有纯文本连带代码一起强行裹成一个大代码块！
+                            if (plainText && /(?:^|\n)```/.test(plainText) && html) {
+                                // 一旦确诊：剪贴板里存在代表正宗 Markdown 的独立反引号
+                                const sel = window.getSelection();
+                                let isInsideCode = false;
+                                if (sel.rangeCount > 0 && sel.anchorNode) {
+                                    const elm = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+                                    if (elm && elm.closest) {
+                                        isInsideCode = elm.closest('.vditor-ir__node[data-type="code-block"]') !== null;
+                                    }
+                                }
+
+                                // 只要不是向现有代码块内注入代码（在外部正常段落），必须立刻切断已被污染的 HTML 渲染链！
+                                if (!isInsideCode) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    
+                                    // 直接向 Vditor 注入高纯度素文本 Markdown 源码
+                                    if (vditor) {
+                                        vditor.insertValue(plainText);
+                                    }
+                                    return;
+                                }
+                            }
+
                             // 鹰眼侦测：如果捕捉到类似知乎等带有隐藏 data-tex 的污染型公式 DOM 时（普通网页不触发）
                             if (html && html.includes('data-tex="')) {
                                 // 直接切断 Vditor 原本那糟糕透顶的防备，由我们全权接管这一次外科手术式的粘贴！
@@ -657,11 +686,11 @@ export default function Editor() {
                     )}
 
                     {/* 实景大厅：通过透明度的压制，迫使其在后端引擎没有就位时完全噤声，并在启动瞬间联动左右屏共同淡雅降维出场！ */}
-                    <div style={{ 
-                        display: needsDualScreen ? 'flex' : 'block', 
-                        gap: '24px', 
+                    <div style={{
+                        display: needsDualScreen ? 'flex' : 'block',
+                        gap: '24px',
                         alignItems: 'stretch',
-                        opacity: isEditorReady ? 1 : 0, 
+                        opacity: isEditorReady ? 1 : 0,
                         transition: 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
                         pointerEvents: isEditorReady ? 'auto' : 'none'
                     }}>
