@@ -265,8 +265,57 @@ export default function Editor() {
                     // 知乎特供图文混排会导致公式彻底炸裂和无端换行，咱们直接在它触碰 Vditor 核心前进行拦截。
                     const irContainer = document.querySelector('.vditor-ir');
                     if (irContainer) {
+                        // =============== 🚑[Vditor 核心结构塌陷同步急救舱] ===============
+                        // 根治：用户 `Ctrl+X` 全选剪切后，浏览器原生机制会销毁底层 `<p>` 容器，导致光标迷失在外部 padding 虚空中。
+                        // 此时若粘贴，文本完全脱离区块，造成首行幽灵换行、无法回删，且光标极度错位（显示在极上方）。
+                        const recoverVacuumState = () => {
+                            requestAnimationFrame(() => {
+                                const editorReset = irContainer.querySelector('.vditor-reset');
+                                if (!editorReset) return;
+                                // 侦测到物理底座被完全摧毁
+                                if (!editorReset.querySelector('p')) {
+                                    // 重塑基础骨架
+                                    editorReset.innerHTML = '<p data-block="0">\n<wbr></p>';
+                                    // ✨ 最关键的抢救：将游离在虚空中（offset 0）的光标，强行捕获回真实的区块内部！
+                                    const p = editorReset.querySelector('p');
+                                    const sel = window.getSelection();
+                                    const range = document.createRange();
+                                    range.selectNodeContents(p);
+                                    range.collapse(true);
+                                    sel.removeAllRanges();
+                                    sel.addRange(range);
+                                }
+                            });
+                        };
+                        irContainer.addEventListener('cut', recoverVacuumState);
+                        irContainer.addEventListener('keyup', (e) => {
+                            if (e.key === 'Backspace' || e.key === 'Delete') recoverVacuumState();
+                        });
+
                         irContainer.addEventListener('paste', (e) => {
+                            // 🚀 [终极防御：WebKit 原生段落切分（分裂）Bug]
+                            // 当在一个含有 <br> 或 <wbr> 的空 <p> 里粘贴包含块级元素 (如 <p>) 的内容时，
+                            // 浏览器原生的 insertHTML 会直接把原空的 <p> 切成两半！从而在上方诞生一个“幽灵寄生空行”！
+                            // 而且因为 Vditor Lute 的 AST 树逻辑，排在第一位的空 block 极难被 Backspace 合并。
+                            // 【最终对策】：如果是全空状态，直接抹除所有遗留壳子制造“绝对真空”，让新粘贴的内容直接在此生根落户，绝不产生切分！
+                            const sel = window.getSelection();
+                            if (sel.rangeCount > 0) {
+                                const editorReset = irContainer.querySelector('.vditor-reset');
+                                if (editorReset && editorReset.contains(sel.anchorNode)) {
+                                    if (editorReset.textContent.trim() === '') {
+                                        // 制造绝对真空环境！
+                                        editorReset.innerHTML = '';
+                                        const range = document.createRange();
+                                        range.setStart(editorReset, 0);
+                                        range.collapse(true);
+                                        sel.removeAllRanges();
+                                        sel.addRange(range);
+                                    }
+                                }
+                            }
+
                             const html = e.clipboardData.getData('text/html');
+                            
                             // 鹰眼侦测：如果捕捉到类似知乎等带有隐藏 data-tex 的污染型公式 DOM 时（普通网页不触发）
                             if (html && html.includes('data-tex="')) {
                                 // 直接切断 Vditor 原本那糟糕透顶的防备，由我们全权接管这一次外科手术式的粘贴！

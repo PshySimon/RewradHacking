@@ -30,7 +30,7 @@ body {
 /* 全平台视场首启时的化影凝结出像特效 */
 @keyframes page-fade-reveal {
     from { opacity: 0; transform: translateY(6px) scale(0.995); filter: blur(4px); }
-    to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+    to { opacity: 1; transform: none; filter: none; }
 }
 .zhi-app, .mac-reading-room, .auth-wrapper {
     animation: page-fade-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -680,6 +680,11 @@ body {
 
 .mac-vditor-override:hover {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* 核心防线：强制为文本层分配独立坐标系，切断果冻光标绝对定位向外层 .vditor 的错误挂载 */
+.vditor-ir {
+    position: relative !important;
 }
 
 /* 重新将工具栏压紧，极其激进地剔除上下任何留白 */
