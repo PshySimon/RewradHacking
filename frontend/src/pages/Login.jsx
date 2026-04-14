@@ -54,7 +54,7 @@ export default function Login() {
                         </div>
                         <span style={{ fontWeight: '900' }}>Reward<span style={{ color: '#0071E3' }}>Hacking</span></span>
                     </h1>
-                    <p className="subtitle">面经管理与分享平台</p>
+                    <p className="subtitle">AI知识分享平台</p>
                 </div>
                 
                 <form className="login-form" onSubmit={handleLogin}>
