@@ -41,10 +41,10 @@ function App() {
 
     return (
       <Routes>
-        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/" element={<Dashboard />} />
         <Route path="/editor" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
-        <Route path="/article/:id" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
-        <Route path="/codeplay/:id" element={<ProtectedRoute><CodePlayground /></ProtectedRoute>} />
+        <Route path="/article/:id" element={<ArticleDetail />} />
+        <Route path="/codeplay/:id" element={<CodePlayground />} />
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route path="/login" element={<Login />} />
         <Route path="/setup" element={<Setup />} />

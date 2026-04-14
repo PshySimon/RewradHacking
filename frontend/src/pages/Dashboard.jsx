@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { macAlert, macConfirm } from '../components/MacModal';
 import TagPill from '../components/TagPill';
+import AuthModal from '../components/AuthModal';
 
 export default function Dashboard() {
     const [articles, setArticles] = useState([]);
@@ -12,6 +13,8 @@ export default function Dashboard() {
     const [transitionPhase, setTransitionPhase] = useState('idle');
     const pendingTabRef = useRef(null);
     const navigate = useNavigate();
+    const [showAuthModal, setShowAuthModal] = useState(false);
+    const [authModalTab, setAuthModalTab] = useState('login');
 
     useEffect(() => {
         document.title = '首页 - RewardHacking';
@@ -21,28 +24,36 @@ export default function Dashboard() {
         sessionStorage.setItem('dashboard_tab', activeTab);
     }, [activeTab]);
 
-    useEffect(() => {
-        const fetchMe = async () => {
-            try {
-                const res = await axios.get('/api/users/me', {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
-                });
-                if (!res.data.is_profile_completed) {
-                    navigate('/onboarding');
-                    return;
-                }
-                setUser(res.data);
-            } catch (err) {
-                navigate('/login');
+    // 尝试获取用户信息（可选，游客无 Token 不跳转）
+    const fetchMe = async () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) { setUser(null); return; }
+        try {
+            const res = await axios.get('/api/users/me', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.data.is_profile_completed) {
+                navigate('/onboarding');
+                return;
             }
-        };
+            setUser(res.data);
+        } catch (err) {
+            // Token 无效，清理并以游客身份继续
+            localStorage.removeItem('access_token');
+            setUser(null);
+        }
+    };
+
+    useEffect(() => {
         fetchMe();
     }, [navigate]);
 
     useEffect(() => {
         const fetchArticles = async () => {
             try {
-                const res = await axios.get(`/api/articles/?category=${activeTab}`);
+                const token = localStorage.getItem('access_token');
+                const headers = token ? { Authorization: `Bearer ${token}` } : {};
+                const res = await axios.get(`/api/articles/?category=${activeTab}`, { headers });
                 setArticles(res.data);
                 requestAnimationFrame(() => setTransitionPhase('fading-in'));
                 // 动态计算：等所有卡片动画播完再切 idle（stagger * 卡片数 + 单卡动画时长）
@@ -88,6 +99,16 @@ export default function Dashboard() {
         );
     };
 
+    const handleAuthSuccess = () => {
+        setShowAuthModal(false);
+        fetchMe(); // 重新获取用户信息
+    };
+
+    const openAuth = (tab) => {
+        setAuthModalTab(tab);
+        setShowAuthModal(true);
+    };
+
     return (
         <div className="zhi-app">
             <header className="zhi-header">
@@ -100,14 +121,12 @@ export default function Dashboard() {
                         Reward<span style={{ color: '#0071E3' }}>Hacking</span>
                     </div>
                     <nav className="zhi-nav" style={{ flexShrink: 0, display: 'flex', position: 'relative', whiteSpace: 'nowrap', gap: 0, alignItems: 'center', paddingLeft: '4px' }}>
-                        {/* 🌟 磁悬浮魔击靶游标（恢复紧身形态并极度放缓动画） 🌟 */}
                         <div style={{
                             position: 'absolute', top: '50%', marginTop: '-16px', left: '4px',
                             width: '58px', height: '32px',
                             transform: `translateX(${['knowledge', 'interview', 'code'].indexOf(activeTab) * 58}px)`,
                             background: 'rgba(0,0,0,0.06)',
                             borderRadius: '12px',
-                            /* Apple 标准丝滑缓动：无过冲，从容优雅 */
                             transition: 'transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1)',
                             zIndex: 0
                         }}></div>
@@ -138,17 +157,44 @@ export default function Dashboard() {
                     </div>
 
                     <div className="zhi-actions" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                        <button className="zhi-btn-primary" style={{ background: '#0071E3', color: '#FFFFFF', padding: '8px 20px', fontWeight: '700', border: 'none', boxShadow: '0 2px 10px rgba(0, 113, 227, 0.2)', whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => navigate(`/editor?category=${activeTab}`)}>创作</button>
-                        <div className="zhi-user-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{
-                                width: '32px', height: '32px', borderRadius: '50%', background: '#0071E3', 
-                                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 'bold'
-                            }}>
-                                {user?.avatar || (user?.nickname || user?.username || '?').charAt(0).toUpperCase()}
+                        {user ? (
+                            <>
+                                <button className="zhi-btn-primary" style={{ background: '#0071E3', color: '#FFFFFF', padding: '8px 20px', fontWeight: '700', border: 'none', boxShadow: '0 2px 10px rgba(0, 113, 227, 0.2)', whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => navigate(`/editor?category=${activeTab}`)}>创作</button>
+                                <div className="zhi-user-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{
+                                        width: '32px', height: '32px', borderRadius: '50%', background: '#0071E3', 
+                                        color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 'bold'
+                                    }}>
+                                        {user?.avatar || (user?.nickname || user?.username || '?').charAt(0).toUpperCase()}
+                                    </div>
+                                    <span style={{fontWeight: 600, fontSize: '14px', color: '#1D1D1F'}}>{user?.nickname || user?.username}</span>
+                                    <span className="zhi-logout" onClick={() => { localStorage.clear(); setUser(null); }}>退出</span>
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <button 
+                                    onClick={() => openAuth('login')}
+                                    style={{ 
+                                        padding: '8px 20px', borderRadius: '20px', border: '1px solid #0071E3', 
+                                        background: 'transparent', color: '#0071E3', fontWeight: 600, fontSize: '14px', 
+                                        cursor: 'pointer', transition: 'all 0.2s' 
+                                    }}
+                                >
+                                    登录
+                                </button>
+                                <button 
+                                    onClick={() => openAuth('register')}
+                                    style={{ 
+                                        padding: '8px 20px', borderRadius: '20px', border: 'none', 
+                                        background: '#0071E3', color: '#FFFFFF', fontWeight: 600, fontSize: '14px', 
+                                        cursor: 'pointer', boxShadow: '0 2px 10px rgba(0, 113, 227, 0.2)', transition: 'all 0.2s' 
+                                    }}
+                                >
+                                    注册
+                                </button>
                             </div>
-                            <span style={{fontWeight: 600, fontSize: '14px', color: '#1D1D1F'}}>{user?.nickname || user?.username}</span>
-                            <span className="zhi-logout" onClick={() => { localStorage.clear(); navigate('/login'); }}>退出</span>
-                        </div>
+                        )}
                     </div>
                 </div>
             </header>
@@ -157,16 +203,16 @@ export default function Dashboard() {
                 {/* Apple 级丝滑过渡容器 */}
                 <div className={`zhi-feed zhi-feed--${transitionPhase}`}>
                     {articles.length === 0 ? (
-                        <div className="zhi-empty">暂无文章，点击上方“创作”发布第一篇。</div>
+                        <div className="zhi-empty">暂无文章，点击上方"创作"发布第一篇。</div>
                     ) : (
                         articles.map((a, idx) => {
                             // 动态渲染预处理层
                             const tagsArr = a.tags ? a.tags.split(',').filter(Boolean) : [];
                             const displayTags = tagsArr.slice(0, 5);
                             const hasMoreTags = tagsArr.length > 5;
-                            // 数据净化宣告：彻底废弃前端伪随机多项式发生器，全面接管后端真实的血脉数据！
                             const views = a.views_count || 0;
                             const comments = a.comments_count || 0;
+                            const isRestricted = a.is_restricted;
                             
                             return (
                                 <div key={a.id} className="zhi-feed-card" onClick={() => {
@@ -176,12 +222,24 @@ export default function Dashboard() {
                                     cursor: 'pointer',
                                     animationDelay: `${idx * 0.07}s`,
                                 }}>
-                                    <h2 className="zhi-card-title">{a.title}</h2>
+                                    <h2 className="zhi-card-title">
+                                        {a.title}
+                                        {isRestricted && (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '8px', verticalAlign: 'middle', flexShrink: 0 }}>
+                                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                            </svg>
+                                        )}
+                                    </h2>
                                     <div className="zhi-card-excerpt">
-                                        {a.content.substring(0, 180)}...
+                                        {isRestricted ? (
+                                            <span style={{ color: '#86868B', fontStyle: 'italic' }}>🔒 登录后可查看全文</span>
+                                        ) : (
+                                            <>{a.content.substring(0, 180)}...</>
+                                        )}
                                     </div>
                                     <div className="zhi-card-footer">
-                                        {/* 左侧：严控极限长度的标签集合舱 */}
+                                        {/* 左侧：标签集合 */}
                                         <div className="zhi-card-footer-left">
                                             {displayTags.map((tag, idx) => (
                                                 <TagPill key={idx} text={tag} />
@@ -189,7 +247,7 @@ export default function Dashboard() {
                                             {hasMoreTags && <span className="mac-tag-pill more-dots">...</span>}
                                         </div>
                                         
-                                        {/* 右侧：精简纯粹的展示互动面板 */}
+                                        {/* 右侧：展示互动面板 */}
                                         <div className="zhi-card-footer-right">
                                             {a.created_at && <span style={{ fontSize: '12px', color: '#86868B', marginRight: '12px', fontWeight: 500 }}>{a.created_at.substring(0, 10)}</span>}
                                             <div className="mac-interaction-item">
@@ -217,6 +275,14 @@ export default function Dashboard() {
                     </div>
                 </aside>
             </main>
+
+            {/* 页内登录/注册弹窗 */}
+            <AuthModal 
+                visible={showAuthModal} 
+                onClose={() => setShowAuthModal(false)} 
+                onSuccess={handleAuthSuccess}
+                initialTab={authModalTab}
+            />
         </div>
     );
 }

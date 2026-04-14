@@ -59,6 +59,7 @@ class ArticleOut(ArticleBase):
     comments_count: int = 0
     created_at: str = ""
     author_name: Optional[str] = None
+    is_restricted: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 class CommentBase(BaseModel):

@@ -7,6 +7,7 @@ import 'vditor/dist/index.css';
 import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
 import ThreadZone from '../components/ThreadZone';
+import AuthModal from '../components/AuthModal';
 
 // 骨架屏炫光占位层
 const ArticleSkeleton = () => (
@@ -38,47 +39,59 @@ export default function ArticleDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [article, setArticle] = useState(null);
-        const [user, setUser] = useState(null);
+    const [user, setUser] = useState(null);
     
     // 渲染系统相关状态
     const [outline, setOutline] = useState([]);
     const [isOutlineVisible, setIsOutlineVisible] = useState(true);
-    const [isMainContentReady, setIsMainContentReady] = useState(false); // 核心防止 Vditor 并发死锁标识
+    const [isMainContentReady, setIsMainContentReady] = useState(false);
     
+    // 登录弹窗
+    const [showAuthModal, setShowAuthModal] = useState(false);
+    const [authModalTab, setAuthModalTab] = useState('login');
     
-    useEffect(() => {
-        // 请求上下文基座
+    const fetchMe = async () => {
         const token = localStorage.getItem('access_token');
-        
-        const fetchMe = async () => {
-            try {
-                const res = await axios.get('/api/users/me', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (!res.data.is_profile_completed) {
-                    navigate('/onboarding');
-                    return;
-                }
-                setUser(res.data);
-            } catch (err) {
-                console.warn("身份解包失败");
+        if (!token) { setUser(null); return; }
+        try {
+            const res = await axios.get('/api/users/me', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.data.is_profile_completed) {
+                navigate('/onboarding');
+                return;
             }
-        };
-
-        if (token) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            fetchMe();
-            fetchArticleDetail();
-            
-        } else {
-            navigate('/login');
+            setUser(res.data);
+        } catch (err) {
+            localStorage.removeItem('access_token');
+            setUser(null);
         }
+    };
+
+    const fetchArticleDetail = async () => {
+        try {
+            const token = localStorage.getItem('access_token');
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const res = await axios.get(`/api/articles/${id}`, { headers });
+            document.title = `${res.data.title} - RewardHacking`;
+            setArticle(res.data);
+            if (!res.data.is_restricted) {
+                generateOutline(res.data.content);
+            }
+        } catch (error) {
+            console.error("加载文章失败：", error);
+            if (error.response?.status === 404) navigate('/');
+        }
+    };
+
+    useEffect(() => {
+        fetchMe();
+        fetchArticleDetail();
     }, [id]);
 
     // 等待 Article 在 DOM 中解包后再对核心正文区铺设高亮渲染
     useEffect(() => {
-        if (article) {
-            // 使用.then来进行错峰：只有当主干文章最吃性能的解析大业落成，才放任其他的实例化动作
+        if (article && !article.is_restricted) {
             Vditor.preview(document.getElementById('mac-vditor-preview'), article.content, {
                 mode: 'light',
                 theme: { current: 'light' },
@@ -87,26 +100,12 @@ export default function ArticleDetail() {
                 setIsMainContentReady(true);
             }).catch(e => {
                 console.error("正文Vditor底层解析故障", e);
-                setIsMainContentReady(true); // 即便出错也不能永远让评论区锁死
+                setIsMainContentReady(true);
             });
         }
     }, [article]);
 
-    const fetchArticleDetail = async () => {
-        try {
-            const res = await axios.get(`/api/articles/${id}`);
-            document.title = `${res.data.title} - RewardHacking`;
-            setArticle(res.data);
-            generateOutline(res.data.content);
-        } catch (error) {
-            console.error("加载文章迷失：", error);
-            if (error.response?.status === 404) navigate('/');
-        }
-    };
-
-    
     const generateOutline = (content) => {
-        // 造一套轻量、灵巧的正则抽大纲以追求原生可塑的自由感
         const regex = /^(#{1,6})\s+(.+)$/gm;
         let match;
         const out = [];
@@ -125,11 +124,8 @@ export default function ArticleDetail() {
 
     // 锚点平滑降落协议
     const scrollToHeading = (title) => {
-        // Vditor 生成的 html 中的 h1~h6 id 是内容文本或者其自带的解析，
-        // 最暴力的办法是直接在前台找文字相等的 DOM 元素，然后 scrollIntoView
         const elements = document.querySelectorAll('#mac-vditor-preview h1, #mac-vditor-preview h2, #mac-vditor-preview h3, #mac-vditor-preview h4, #mac-vditor-preview h5, #mac-vditor-preview h6');
         for (let el of elements) {
-            // Vditor 会包裹超链接等，取 textContent
             if (el.textContent.includes(title)) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 break;
@@ -137,19 +133,29 @@ export default function ArticleDetail() {
         }
     };
 
-    
-    
     // 删除文章操作
     const handleDeleteClick = () => {
         macConfirm("确认删除", "确定要永久删除这篇文章吗？此操作无法恢复。", async () => {
             try {
                 await axios.delete(`/api/articles/${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } });
-                navigate('/'); // 删除完毕后返回首页
+                navigate('/');
             } catch (error) {
                 console.error("删除动作失败：", error);
                 macAlert(error.response?.data?.detail || "无法删除目标文件，请检查当前操作权限。", "删除失败");
             }
         });
+    };
+
+    const handleAuthSuccess = () => {
+        setShowAuthModal(false);
+        // 重新加载当前页面数据
+        fetchMe();
+        fetchArticleDetail();
+    };
+
+    const openAuth = (tab) => {
+        setAuthModalTab(tab);
+        setShowAuthModal(true);
     };
 
     if (!article) return (
@@ -177,7 +183,6 @@ export default function ArticleDetail() {
 
     return (
         <div className="mac-reading-room">
-            {/* 顶配：高斯全息指令条，高度类似于 Dashboard 的配置 */}
             <header className="zhi-header">
                 <div className="zhi-header-inner">
                     <nav className="zhi-nav">
@@ -206,23 +211,28 @@ export default function ArticleDetail() {
                                 </span>
                             </div>
                         )}
-                        <div className="zhi-user-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{
-                                width: '32px', height: '32px', borderRadius: '50%', background: '#0071E3', 
-                                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 'bold'
-                            }}>
-                                {user?.avatar || (user?.nickname || user?.username || '?').charAt(0).toUpperCase()}
+                        {user ? (
+                            <div className="zhi-user-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{
+                                    width: '32px', height: '32px', borderRadius: '50%', background: '#0071E3', 
+                                    color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: 'bold'
+                                }}>
+                                    {user?.avatar || (user?.nickname || user?.username || '?').charAt(0).toUpperCase()}
+                                </div>
+                                <span style={{fontWeight: 600, fontSize: '14px', color: '#1D1D1F'}}>{user?.nickname || user?.username}</span>
+                                <span className="zhi-logout" onClick={() => { localStorage.clear(); setUser(null); fetchArticleDetail(); }}>退出登录</span>
                             </div>
-                            <span style={{fontWeight: 600, fontSize: '14px', color: '#1D1D1F'}}>{user?.nickname || user?.username}</span>
-                            <span className="zhi-logout" onClick={() => { localStorage.clear(); navigate('/login'); }}>退出登录</span>
-                        </div>
+                        ) : (
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <button onClick={() => openAuth('login')} style={{ padding: '8px 20px', borderRadius: '20px', border: '1px solid #0071E3', background: 'transparent', color: '#0071E3', fontWeight: 600, fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' }}>登录</button>
+                                <button onClick={() => openAuth('register')} style={{ padding: '8px 20px', borderRadius: '20px', border: 'none', background: '#0071E3', color: '#FFFFFF', fontWeight: 600, fontSize: '14px', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0, 113, 227, 0.2)', transition: 'all 0.2s' }}>注册</button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>
 
-            {/* 大阵列：双轨滑行悬浮阅读场 */}
             <main className="mac-reader-layout">
-                {/* 漂浮的收放枢纽 + 抽屉式隐形容器 */}
                 {showOutline && (
                 <div className="mac-sidebar-container">
                     <div className="mac-outline-toggler" onClick={() => setIsOutlineVisible(!isOutlineVisible)} title={isOutlineVisible ? '收起导视' : '唤起导视'}>
@@ -261,7 +271,6 @@ export default function ArticleDetail() {
                 </div>
                 )}
 
-                {/* 右域（乃至主域）：正文展示核心、底部互动圈 */}
                 <article className="mac-reader-content" style={!showOutline ? { margin: '0 auto', maxWidth: '800px', width: '100%' } : {}}>
                     <div className="mac-article-glass-card">
                         <h1 className="mac-article-title">{article.title}</h1>
@@ -283,11 +292,29 @@ export default function ArticleDetail() {
                             </div>
                         </div>
 
-                        <div id="mac-vditor-preview" className="mac-markdown-stream"></div>
+                        {/* 正文区域：根据 is_restricted 决定显示完整内容还是遮罩 */}
+                        {article.is_restricted ? (
+                            <div className="rh-restricted-zone">
+                                <div className="rh-restricted-card" style={{ margin: '60px auto' }}>
+                                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                    <h3>当前内容需要登录后查看</h3>
+                                    <p>作者已将本文设置为登录可见，请先登录或注册后继续阅读。</p>
+                                    <div className="rh-restricted-actions">
+                                        <button className="rh-btn-login" onClick={() => openAuth('login')}>登录</button>
+                                        <button className="rh-btn-register" onClick={() => openAuth('register')}>注册</button>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div id="mac-vditor-preview" className="mac-markdown-stream"></div>
+                        )}
                     </div>
 
-                    {/* 评论交互生命海：已完全组件化抽离于 ThreadZone 核心！ */}
-                    {isMainContentReady && (
+                    {/* 评论区：仅在非受限且渲染完成后显示 */}
+                    {!article.is_restricted && isMainContentReady && (
                         <ThreadZone 
                             articleId={id} 
                             articleAuthorId={article.author_id} 
@@ -296,6 +323,13 @@ export default function ArticleDetail() {
                     )}
                 </article>
             </main>
+
+            <AuthModal 
+                visible={showAuthModal} 
+                onClose={() => setShowAuthModal(false)} 
+                onSuccess={handleAuthSuccess}
+                initialTab={authModalTab}
+            />
         </div>
     );
 }

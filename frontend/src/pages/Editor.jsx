@@ -20,6 +20,9 @@ export default function Editor() {
     const [isPublishing, setIsPublishing] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
+    const [visibility, setVisibility] = useState('public');
+    const [isVisDropdownOpen, setIsVisDropdownOpen] = useState(false);
+    const visDropdownRef = useRef(null);
     const [initialContent, setInitialContent] = useState('');
     const [codeTemplate, setCodeTemplate] = useState('');
 
@@ -113,6 +116,7 @@ export default function Editor() {
                 setCategory(data.category);
                 if (data.tags) setTags(data.tags.split(',').filter(Boolean));
                 if (data.code_template) setCodeTemplate(data.code_template);
+                if (data.visibility) setVisibility(data.visibility);
                 setInitialContent(data.content);
             }).catch(err => {
                 console.error("双通道加载旧文稿均失败或没有权限", err);
@@ -176,6 +180,9 @@ export default function Editor() {
             }
             if (draftDropdownRef.current && !draftDropdownRef.current.contains(event.target)) {
                 setIsDraftDropdownOpen(false);
+            }
+            if (visDropdownRef.current && !visDropdownRef.current.contains(event.target)) {
+                setIsVisDropdownOpen(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -395,8 +402,8 @@ export default function Editor() {
                 content,
                 code_template: codeTemplate,
                 category: solveForId ? 'solution' : category,
-                visibility: 'public',
-                tags: tags.join(',') // 将零碎的宝石封印装箱寄出
+                visibility: visibility,
+                tags: tags.join(',')
             };
             const config = { headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` } };
 
@@ -490,6 +497,38 @@ export default function Editor() {
                                             {label}
                                             {/* 对勾特效只在选中的选项后出现 */}
                                             {category === key && (
+                                                <svg className="mac-check" width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M13.3333 4.66667L6 12L2.66666 8.66667" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 访问权限选择器 */}
+                        <div className="mac-custom-dropdown" ref={visDropdownRef} onClick={() => setIsVisDropdownOpen(!isVisDropdownOpen)}>
+                            <div className="mac-dropdown-trigger">
+                                <span>{visibility === 'public' ? '🌐 游客可见' : '🔒 登录可见'}</span>
+                                <svg className={`mac-chevron ${isVisDropdownOpen ? 'open' : ''}`} width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </div>
+                            {isVisDropdownOpen && (
+                                <div className="mac-dropdown-menu">
+                                    {[['public', '🌐 游客可见'], ['registered', '🔒 登录可见']].map(([key, label]) => (
+                                        <div
+                                            key={key}
+                                            className={`mac-dropdown-item ${visibility === key ? 'active' : ''}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setVisibility(key);
+                                                setIsVisDropdownOpen(false);
+                                            }}
+                                        >
+                                            {label}
+                                            {visibility === key && (
                                                 <svg className="mac-check" width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                     <path d="M13.3333 4.66667L6 12L2.66666 8.66667" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                                 </svg>

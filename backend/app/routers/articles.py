@@ -11,34 +11,62 @@ router = APIRouter(prefix="/api/articles", tags=["Articles"])
 def read_articles(
     category: models.CategoryEnum = None, 
     skip: int = 0, limit: int = 100, 
-    db: Session = Depends(database.get_db)
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_optional_user)
 ) -> Any:
     """ 拉取对应分类的文章广场 """
     query = db.query(models.Article)
     if category:
         query = query.filter(models.Article.category == category)
+    # 过滤掉 admin_only 文章，不对普通列表暴露
+    query = query.filter(models.Article.visibility != models.VisibilityEnum.admin_only)
     # 按从新到旧排列
     articles = query.order_by(models.Article.id.desc()).offset(skip).limit(limit).all()
+    
+    # 对未登录游客，清空 registered 文章的正文内容
+    if current_user is None:
+        results = []
+        for a in articles:
+            out = schemas.ArticleOut.model_validate(a)
+            if a.visibility == models.VisibilityEnum.registered:
+                out.content = ""
+                out.is_restricted = True
+            results.append(out)
+        return results
     return articles
 
 @router.get("/{article_id}", response_model=schemas.ArticleOut)
-def read_article(article_id: str, db: Session = Depends(database.get_db)) -> Any:
+def read_article(
+    article_id: str, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_optional_user)
+) -> Any:
     article = db.query(models.Article).filter(models.Article.id == article_id).first()
-    # 严格筛除代码类型，如果发现目标竟然是 code，则当场判决不存在（抛出 404 死路）
     if not article or article.category.value == 'code':
-        raise HTTPException(status_code=404, detail="常规世界中找不到这个幽灵实体。")
-    # 实现极客自增统计，精确拦截每一次热点访问
+        raise HTTPException(status_code=404, detail="文章不存在。")
+    # 浏览量自增
     article.views_count += 1
     db.commit()
     db.refresh(article)
-    return article
+    
+    result = schemas.ArticleOut.model_validate(article)
+    # 如果文章是 registered 可见，且游客未登录，彻底清空内容
+    if article.visibility == models.VisibilityEnum.registered and current_user is None:
+        result.content = ""
+        result.code_template = None
+        result.is_restricted = True
+    return result
 
 @router.get("/code/{article_id}", response_model=schemas.ArticleOut)
-def read_code_entity(article_id: str, db: Session = Depends(database.get_db)) -> Any:
-    """ 高维结界专用数据通道：只对纯种代码实体放行 """
+def read_code_entity(
+    article_id: str, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_optional_user)
+) -> Any:
+    """ 代码实体专用数据通道 """
     article = db.query(models.Article).filter(models.Article.id == article_id).first()
     if not article or article.category.value != 'code':
-        raise HTTPException(status_code=404, detail="麻瓜止步，此数据非可执行标的。")
+        raise HTTPException(status_code=404, detail="该代码实体不存在。")
     article.views_count += 1
     db.commit()
     db.refresh(article)
@@ -47,8 +75,16 @@ def read_code_entity(article_id: str, db: Session = Depends(database.get_db)) ->
     user = db.query(models.User).filter(models.User.id == article.author_id).first()
     if user:
         article.author_name = user.nickname or user.username
-        
-    return article
+    
+    result = schemas.ArticleOut.model_validate(article)
+    if user:
+        result.author_name = user.nickname or user.username
+    # 如果文章是 registered 可见，且游客未登录，彻底清空内容
+    if article.visibility == models.VisibilityEnum.registered and current_user is None:
+        result.content = ""
+        result.code_template = None
+        result.is_restricted = True
+    return result
 
 @router.get("/code/{article_id}/solutions", response_model=List[schemas.ArticleOut])
 def read_code_solutions(article_id: str, db: Session = Depends(database.get_db)) -> Any:

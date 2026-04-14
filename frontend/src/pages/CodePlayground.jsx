@@ -5,6 +5,7 @@ import ErrorPage from './ErrorPage';
 import ThreadZone from '../components/ThreadZone';
 import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
+import AuthModal from '../components/AuthModal';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
@@ -46,16 +47,21 @@ export default function CodePlayground() {
     const [user, setUser] = useState(null);
     const [isError, setIsError] = useState(false);
     const [codeContent, setCodeContent] = useState("");
+    const [showAuthModal, setShowAuthModal] = useState(false);
+    const [authModalTab, setAuthModalTab] = useState('login');
     
     // 初始化登录身份嗅探
-    useEffect(() => {
+    const fetchMe = () => {
         const token = localStorage.getItem('access_token');
-        if(token) {
-            axios.get('/api/users/me', { headers: { Authorization: `Bearer ${token}` } })
-                 .then(res => setUser(res.data))
-                 .catch(() => {});
-        }
-    }, []);
+        if(!token) { setUser(null); return; }
+        axios.get('/api/users/me', { headers: { Authorization: `Bearer ${token}` } })
+             .then(res => setUser(res.data))
+             .catch(() => { localStorage.removeItem('access_token'); setUser(null); });
+    };
+    useEffect(() => { fetchMe(); }, []);
+
+    const openAuth = (tab) => { setAuthModalTab(tab); setShowAuthModal(true); };
+    const handleAuthSuccess = () => { setShowAuthModal(false); fetchMe(); window.location.reload(); };
     
     // Pyodide Core
     const [leftTab, setLeftTab] = useState('description');
@@ -204,7 +210,9 @@ export default function CodePlayground() {
 
     // 1. 获取文章题目数据并结合靶场打卡草稿统一裁决初值
     useEffect(() => {
-        const articlePromise = axios.get(`/api/articles/code/${id}`).then(res => res.data);
+        const token = localStorage.getItem('access_token');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const articlePromise = axios.get(`/api/articles/code/${id}`, { headers }).then(res => res.data);
         
         Promise.all([fetchDraftLogic(), articlePromise]).then(([draft, articleData]) => {
             document.title = `${articleData.title} - RewardHacking`;
@@ -417,27 +425,52 @@ export default function CodePlayground() {
                                 </span>
                             </div>
                         )}
-                        <button 
-                            onClick={executeCode} 
-                            disabled={isPyodideLoading || isExecuting}
-                            className="zhi-btn-primary"
-                            style={{
-                                background: isExecuting ? '#E5E7EB' : '#1D1D1F',
-                                color: isExecuting ? '#86868B' : '#FFF',
-                                border: 'none', borderRadius: '6px', padding: '6px 20px', fontSize: '13px',
-                                fontWeight: '600', cursor: (isPyodideLoading || isExecuting) ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.2s', boxShadow: 'none'
-                            }}
-                        >
-                            {isPyodideLoading ? 'Wasm 启动中...' : isExecuting ? '引力场解析中...' : '▶ 执行沙箱 (Run)'}
-                        </button>
+                        {user ? (
+                            <button 
+                                onClick={executeCode} 
+                                disabled={isPyodideLoading || isExecuting}
+                                className="zhi-btn-primary"
+                                style={{
+                                    background: isExecuting ? '#E5E7EB' : '#1D1D1F',
+                                    color: isExecuting ? '#86868B' : '#FFF',
+                                    border: 'none', borderRadius: '6px', padding: '6px 20px', fontSize: '13px',
+                                    fontWeight: '600', cursor: (isPyodideLoading || isExecuting) ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s', boxShadow: 'none'
+                                }}
+                            >
+                                {isPyodideLoading ? 'Wasm 启动中...' : isExecuting ? '引力场解析中...' : '▶ 执行沙箱 (Run)'}
+                            </button>
+                        ) : (
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                                <button onClick={() => openAuth('login')} style={{ padding: '6px 16px', borderRadius: '16px', border: '1px solid #0071E3', background: 'transparent', color: '#0071E3', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}>登录</button>
+                                <button onClick={() => openAuth('register')} style={{ padding: '6px 16px', borderRadius: '16px', border: 'none', background: '#0071E3', color: '#FFF', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}>注册</button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>
 
+            {/* 受限遮罩层：is_restricted 时覆盖整个编码区 */}
+            {article?.is_restricted && (
+                <div style={{ position: 'absolute', top: '56px', left: 0, right: 0, bottom: 0, zIndex: 50, background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="rh-restricted-card">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <h3>当前内容需要登录后查看</h3>
+                        <p>作者已将本题设置为登录可见，请先登录或注册后继续查看。</p>
+                        <div className="rh-restricted-actions">
+                            <button className="rh-btn-login" onClick={() => openAuth('login')}>登录</button>
+                            <button className="rh-btn-register" onClick={() => openAuth('register')}>注册</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* 双阵列深渊 */}
             <div style={{ display: 'flex', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
-                {/* 左翼：多维战局分析面板 */}
+                {/* 左翼 */}
                 <div style={{ width: `calc(${leftWidth}% - 4px)`, display: 'flex', flexDirection: 'column', background: '#FAFAFC' }}>
                     {/* 内置 Tab 滑轨 */}
                     <div style={{ display: 'flex', borderBottom: '1px solid #E5E7EB', background: '#F5F5F7', padding: '0 8px', flexShrink: 0 }}>
@@ -730,6 +763,13 @@ export default function CodePlayground() {
                     </div>
                 </div>
             )}
+
+            <AuthModal 
+                visible={showAuthModal} 
+                onClose={() => setShowAuthModal(false)} 
+                onSuccess={handleAuthSuccess}
+                initialTab={authModalTab}
+            />
         </div>
     );
 }
