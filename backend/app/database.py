@@ -1,7 +1,11 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./interview.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# 绝对锚定，防止任何工作空间启动脚本导致的路径乱飞
+DB_PATH = os.path.join(os.path.dirname(BASE_DIR), "hacking.db")
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # 创建数据库引擎
 # check_same_thread 设定是为了适配 SQLite 本地多线程通信

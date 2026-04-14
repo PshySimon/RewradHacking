@@ -5,10 +5,12 @@ import { useNavigate } from 'react-router-dom';
 export default function Setup() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [nickname, setNickname] = useState('');
+    const [birthday, setBirthday] = useState('');
     const [errorMsg, setErrorMsg] = useState('');
     
-    // UI状态机: 'FORM' -> 'INSTALLING' -> 'SUCCESS'
-    const [viewState, setViewState] = useState('FORM');
+    // UI状态机: 'ACCOUNT_FORM' -> 'PROFILE_FORM' -> 'INSTALLING' -> 'SUCCESS'
+    const [viewState, setViewState] = useState('ACCOUNT_FORM');
     const [progress, setProgress] = useState(0);
     const [progressText, setProgressText] = useState('');
     const [ripples, setRipples] = useState([]);
@@ -23,9 +25,24 @@ export default function Setup() {
         setRipples(prev => [...prev, { x, y, size: diameter, id: Date.now() }]);
     };
 
-    const handleSetup = async (e) => {
+    const handleAccountSubmit = (e) => {
         e.preventDefault();
         setErrorMsg('');
+        if (!username || !password) {
+            setErrorMsg('账号和密码不能为空。');
+            return;
+        }
+        // 第一步完成，平滑进入档案补充步骤
+        setViewState('PROFILE_FORM');
+    };
+
+    const handleProfileSubmit = async (e) => {
+        e.preventDefault();
+        setErrorMsg('');
+        if (!nickname.trim() || !birthday) {
+            setErrorMsg('请完善向导中的所有信息，包括昵称和生日。');
+            return;
+        }
         setViewState('INSTALLING');
         
         // 真实且毫无包装的进度节点反馈
@@ -51,7 +68,12 @@ export default function Setup() {
         }, 450);
 
         try {
-            await axios.post('/api/auth/setup_admin', { username, password });
+            await axios.post('/api/auth/setup_admin', { 
+                username, 
+                password,
+                nickname: nickname.trim(),
+                birthday
+            });
             
             // 为了让视觉状态流畅走完，哪怕后端请求只耗费1毫秒，我们也等待2.2秒
             setTimeout(() => {
@@ -70,35 +92,45 @@ export default function Setup() {
 
     return (
         <div className="auth-wrapper">
-            <div className="login-card" style={{ maxWidth: '500px' }}>
+            <div className="login-card" style={{ maxWidth: '640px' }}>
                 <div className="logo-area" style={{ marginBottom: '20px' }}>
-                    <h1>Prep<span>Master</span></h1>
+                    <h1 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '32px', color: '#1D1D1F', letterSpacing: '-1px', margin: '0 0 5px 0' }}>
+                        <div style={{ position: 'relative', width: '32px', height: '32px', flexShrink: 0 }}>
+                            <div style={{ position: 'absolute', top: '0', left: '0', width: '22px', height: '22px', background: '#38BDF8', borderRadius: '6px' }}></div>
+                            <div style={{ position: 'absolute', bottom: '0', right: '0', width: '22px', height: '22px', background: '#0071E3', borderRadius: '6px', zIndex: 1, boxShadow: '-2px -2px 0 white' }}></div>
+                        </div>
+                        <span style={{ fontWeight: '900' }}>Reward<span style={{ color: '#0071E3' }}>Hacking</span></span>
+                    </h1>
                     <p className="subtitle">系统配置向导</p>
                 </div>
 
                 <div className="setup-steps">
                     {/* 根据状态动态高亮进度标识 */}
-                    <div className="step active" style={{ background: viewState === 'FORM' ? '#3B82F6' : '', color: viewState === 'FORM' ? 'white' : '' }}>
-                        {viewState === 'FORM' ? '● 配置系统' : '✓ 配置系统'}
+                    <div className={`step ${viewState === 'ACCOUNT_FORM' || viewState === 'PROFILE_FORM' || viewState === 'INSTALLING' || viewState === 'SUCCESS' ? 'active' : ''}`} style={{ background: viewState === 'ACCOUNT_FORM' ? '#3B82F6' : '', color: viewState === 'ACCOUNT_FORM' ? 'white' : '' }}>
+                        {viewState === 'ACCOUNT_FORM' ? '● 配置账号' : '✓ 配置账号'}
                     </div>
                     <div className="step-line"></div>
-                    <div className="step active" style={{ background: viewState === 'INSTALLING' ? '#3B82F6' : '', color: viewState === 'INSTALLING' ? 'white' : ''}}>
-                        {viewState !== 'SUCCESS' ? '● 安装部署' : '✓ 安装部署'}
+                    <div className={`step ${viewState === 'PROFILE_FORM' || viewState === 'INSTALLING' || viewState === 'SUCCESS' ? 'active' : ''}`} style={{ background: viewState === 'PROFILE_FORM' ? '#3B82F6' : '', color: viewState === 'PROFILE_FORM' ? 'white' : '' }}>
+                        {viewState === 'PROFILE_FORM' ? '● 完善信息' : viewState === 'ACCOUNT_FORM' ? '完善信息' : '✓ 完善信息'}
                     </div>
                     <div className="step-line"></div>
-                    <div className="step active" style={{ background: viewState === 'SUCCESS' ? '#3B82F6' : '', color:  viewState === 'SUCCESS' ? 'white' : '' }}>
+                    <div className={`step ${viewState === 'INSTALLING' || viewState === 'SUCCESS' ? 'active' : ''}`} style={{ background: viewState === 'INSTALLING' ? '#3B82F6' : '', color: viewState === 'INSTALLING' ? 'white' : ''}}>
+                        {viewState === 'SUCCESS' ? '✓ 安装部署' : viewState === 'INSTALLING' ? '● 安装部署' : '安装部署'}
+                    </div>
+                    <div className="step-line"></div>
+                    <div className={`step ${viewState === 'SUCCESS' ? 'active' : ''}`} style={{ background: viewState === 'SUCCESS' ? '#3B82F6' : '', color:  viewState === 'SUCCESS' ? 'white' : '' }}>
                         {viewState === 'SUCCESS' ? '● 跳转验证' : '完成启航'}
                     </div>
                 </div>
                 
-                {viewState === 'FORM' && (
+                {viewState === 'ACCOUNT_FORM' && (
                     <>
                         <div style={{ textAlign: 'center', marginBottom: '25px', marginTop: '10px' }}>
-                            <h2 style={{ fontSize: '20px', marginBottom: '5px' }}>设置管理员</h2>
-                            <p style={{ fontSize: '13px', color: '#8AA2BA' }}>请为面经系统设置强有力的唯一管理员账号</p>
+                            <h2 style={{ fontSize: '20px', marginBottom: '5px' }}>配置管理员账号</h2>
+                            <p style={{ fontSize: '13px', color: '#8AA2BA' }}>请为系统设置唯一的管理员登录凭证</p>
                         </div>
                         
-                        <form className="login-form" onSubmit={handleSetup}>
+                        <form className="login-form" onSubmit={handleAccountSubmit} style={{ maxWidth: '400px', margin: '0 auto' }}>
                             <div className="input-group">
                                 <label>管理员账号</label>
                                 <input type="text" placeholder="请输入管理员账号" value={username} onChange={e => setUsername(e.target.value)} required />
@@ -110,18 +142,51 @@ export default function Setup() {
 
                             {errorMsg && <div className="error-msg">{errorMsg}</div>}
 
-                            <button type="submit" className="submit-btn" onMouseDown={addRipple} style={{ marginTop: '10px' }}>
-                                确认并初始化系统
+                            <button type="submit" className="submit-btn" onMouseDown={addRipple} style={{ marginTop: '20px' }}>
+                                下一步
                                 {ripples.map(r => ( <span key={r.id} className="ripple-span" style={{ left: r.x, top: r.y, width: r.size, height: r.size }} onAnimationEnd={() => setRipples(prev => prev.filter(ripple => ripple.id !== r.id))}/>))}
                             </button>
                         </form>
                     </>
                 )}
 
+                {viewState === 'PROFILE_FORM' && (
+                    <>
+                        <div style={{ textAlign: 'center', marginBottom: '25px', marginTop: '10px' }}>
+                            <h2 style={{ fontSize: '20px', marginBottom: '5px' }}>完善档案信息</h2>
+                            <p style={{ fontSize: '13px', color: '#8AA2BA' }}>作为平台的第一位成员，请配置您的对外形象资料</p>
+                        </div>
+                        
+                        <form className="login-form" onSubmit={handleProfileSubmit} style={{ maxWidth: '400px', margin: '0 auto' }}>
+                            <div className="input-group">
+                                <label>系统显示昵称</label>
+                                <input type="text" placeholder="设置您的系统显示昵称" value={nickname} onChange={e => setNickname(e.target.value)} required />
+                            </div>
+                            <div className="input-group">
+                                <label>出生日期</label>
+                                <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)} required />
+                            </div>
+
+                            {errorMsg && <div className="error-msg">{errorMsg}</div>}
+
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                                <button type="button" className="submit-btn" onClick={() => setViewState('ACCOUNT_FORM')} style={{ flex: 1, width: 'auto', background: '#F3F4F6', color: '#374151' }} onMouseDown={addRipple}>
+                                    返回
+                                    {ripples.map(r => ( <span key={r.id} className="ripple-span" style={{ left: r.x, top: r.y, width: r.size, height: r.size }} onAnimationEnd={() => setRipples(prev => prev.filter(ripple => ripple.id !== r.id))}/>))}
+                                </button>
+                                <button type="submit" className="submit-btn" onMouseDown={addRipple} style={{ flex: 2, width: 'auto' }}>
+                                    确认并初始化系统
+                                    {ripples.map(r => ( <span key={r.id} className="ripple-span" style={{ left: r.x, top: r.y, width: r.size, height: r.size }} onAnimationEnd={() => setRipples(prev => prev.filter(ripple => ripple.id !== r.id))}/>))}
+                                </button>
+                            </div>
+                        </form>
+                    </>
+                )}
+
                 {/* 加载中与成功的专属视觉区 */}
-                {viewState !== 'FORM' && (
+                {(viewState === 'INSTALLING' || viewState === 'SUCCESS') && (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '40px 0 20px 0', minHeight: '160px' }}>
-                        <div style={{ padding: '20px', background: viewState === 'SUCCESS' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)', borderRadius: '50%', marginBottom: '15px' }}>
+                        <div style={{ width: '80px', height: '80px', flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', background: viewState === 'SUCCESS' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)', borderRadius: '50%', marginBottom: '15px' }}>
                             {viewState === 'SUCCESS' ? (
                                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                             ) : (
@@ -151,6 +216,22 @@ export default function Setup() {
             <style>{`
                 .spin { animation: spin 2s linear infinite; }
                 @keyframes spin { 100% { transform: rotate(360deg); } }
+                .submit-btn {
+                    position: relative;
+                    overflow: hidden;
+                    width: 100%;
+                    padding: 12px;
+                    border: none;
+                    border-radius: 8px;
+                    background: #0071E3;
+                    color: white;
+                    font-size: 15px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: background 0.3s;
+                }
+                .submit-btn:hover { background: #0077ED; }
+                .error-msg { margin-bottom: 15px; color: #EF4444; font-size: 13px; text-align: center; }
             `}</style>
         </div>
     );

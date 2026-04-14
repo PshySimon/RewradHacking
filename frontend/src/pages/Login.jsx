@@ -47,7 +47,13 @@ export default function Login() {
         <div className="auth-wrapper">
             <div className="login-card">
                 <div className="logo-area">
-                    <h1>Prep<span>Master</span></h1>
+                    <h1 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', fontSize: '32px', color: '#1D1D1F', letterSpacing: '-1px', margin: '0 0 5px 0' }}>
+                        <div style={{ position: 'relative', width: '32px', height: '32px', flexShrink: 0 }}>
+                            <div style={{ position: 'absolute', top: '0', left: '0', width: '22px', height: '22px', background: '#38BDF8', borderRadius: '6px' }}></div>
+                            <div style={{ position: 'absolute', bottom: '0', right: '0', width: '22px', height: '22px', background: '#0071E3', borderRadius: '6px', zIndex: 1, boxShadow: '-2px -2px 0 white' }}></div>
+                        </div>
+                        <span style={{ fontWeight: '900' }}>Reward<span style={{ color: '#0071E3' }}>Hacking</span></span>
+                    </h1>
                     <p className="subtitle">面经管理与分享平台</p>
                 </div>
                 

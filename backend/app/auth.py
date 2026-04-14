@@ -66,3 +66,18 @@ def get_current_admin(current_user: models.User = Depends(get_current_user)):
             detail="当前账户权限不足（需要 Admin 角色）",
         )
     return current_user
+
+# 3. 隐性可选用户验证 (游客态兼容)
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="api/auth/login", auto_error=False)
+
+def get_optional_user(token: Optional[str] = Depends(oauth2_scheme_optional), db: Session = Depends(database.get_db)):
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        return db.query(models.User).filter(models.User.username == username).first()
+    except JWTError:
+        return None

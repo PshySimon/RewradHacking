@@ -1,9 +1,9 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 import os
 
-from . import models, database, auth
+from . import models, database, auth, schemas
 from .database import engine
 from .routers import auth as auth_router, articles as articles_router, upload as upload_router
 
@@ -45,7 +45,39 @@ def read_system_status(db: Session = Depends(database.get_db)):
 @app.get("/api/users/me")
 def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
     """ [User / 注册用户专属] 携带有效 JWT 才能访问 """
-    return {"status": "SUCCESS", "username": current_user.username, "role": current_user.role}
+    return {
+        "status": "SUCCESS", 
+        "id": current_user.id,
+        "username": current_user.username, 
+        "role": current_user.role,
+        "nickname": current_user.nickname,
+        "avatar": current_user.avatar,
+        "birthday": current_user.birthday,
+        "is_profile_completed": current_user.is_profile_completed
+    }
+
+@app.put("/api/users/profile")
+def update_user_profile(
+    profile: schemas.UserProfileUpdate, 
+    db: Session = Depends(database.get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """ 更新自我绝密资料。一旦锁定，破防出关 """
+    # 护甲验证：昵称不得重复抢注（排除自身当前昵称）
+    existing_user = db.query(models.User).filter(models.User.nickname == profile.nickname, models.User.id != current_user.id).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="宇宙法则：此代号已被其他使者获取，请更名。")
+    
+    current_user.nickname = profile.nickname
+    current_user.birthday = profile.birthday
+    if profile.avatar:
+        current_user.avatar = profile.avatar
+    # 强制将状态提拔为完善，摧毁拦截锁死！
+    current_user.is_profile_completed = True
+    
+    db.commit()
+    db.refresh(current_user)
+    return {"status": "SUCCESS", "detail": "铭牌注入圆满完成，系统全面解禁。"}
 
 @app.get("/api/admin/dashboard")
 def read_admin_data(current_user: models.User = Depends(auth.get_current_admin)):

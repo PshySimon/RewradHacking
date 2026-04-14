@@ -2,186 +2,680 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-    --primary-bg: #F0F6FF; 
-    --card-bg: rgba(255, 255, 255, 0.65); 
+    --primary-bg: #F0F6FF;
+    --card-bg: rgba(255, 255, 255, 0.65);
     --card-border: rgba(255, 255, 255, 0.9);
-    --text-main: #1E3A5F;    
-    --text-muted: #8AA2BA;   
-    --btn-bg: #4A90E2;       
-    --blob-1: #D6E4FF; --blob-2: #E3F2FD; --blob-3: #BEE3F8; --blob-4: #E0E7FF;
+    --text-main: #1E3A5F;
+    --text-muted: #8AA2BA;
+    --btn-bg: #4A90E2;
+    --blob-1: #D6E4FF;
+    --blob-2: #E3F2FD;
+    --blob-3: #BEE3F8;
+    --blob-4: #E0E7FF;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-    background: #F6F6F6; /* 知乎经典极简灰底板 */
-    color: #121212; overflow-x: hidden; min-height: 100vh;
+    background: #F6F6F6;
+    /* 知乎经典极简灰底板 */
+    color: #121212;
+    overflow-x: hidden;
+    min-height: 100vh;
 }
 
 
-.auth-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+.auth-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
 
 /* 🌟 LOGIN 专属中央小尺寸垂直浮现卡片 🌟 */
 .login-card {
-    width: 100%; max-width: 400px; /* 压紧尺寸使其秀气 */
+    width: 100%;
+    max-width: 400px;
+    /* 压紧尺寸使其秀气 */
     background: var(--card-bg);
-    backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
     border: 1px solid var(--card-border);
-    border-radius: 28px;  
+    border-radius: 28px;
     padding: 50px 40px;
-    box-shadow: 0 40px 80px rgba(59, 130, 246, 0.08), inset 0 2px 0 rgba(255,255,255,0.7);
+    box-shadow: 0 40px 80px rgba(59, 130, 246, 0.08), inset 0 2px 0 rgba(255, 255, 255, 0.7);
     /* 彻底移除导致晕眩晃动的上下跳跃动画 hover transform */
     transition: box-shadow 0.4s ease;
 }
-.login-card:hover {  
-    box-shadow: 0 50px 100px rgba(59, 130, 246, 0.12), inset 0 2px 0 rgba(255,255,255,0.8); 
+
+.login-card:hover {
+    box-shadow: 0 50px 100px rgba(59, 130, 246, 0.12), inset 0 2px 0 rgba(255, 255, 255, 0.8);
 }
 
 /* 🌟 SETUP 向导长条特供样式 🌟 */
-.setup-steps { display: flex; justify-content: center; align-items: center; margin-bottom: 25px; gap: 8px; }
-.step { font-size: 13px; font-weight: 500; padding: 6px 14px; border-radius: 20px; background: rgba(59, 130, 246, 0.1); color: #3B82F6; }
-.step-line { width: 35px; height: 1px; background: rgba(59, 130, 246, 0.25); }
+.setup-steps {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 25px;
+    gap: 8px;
+}
+
+.step {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: rgba(59, 130, 246, 0.1);
+    color: #3B82F6;
+    white-space: nowrap;
+}
+
+.step-line {
+    width: 35px;
+    height: 1px;
+    background: rgba(59, 130, 246, 0.25);
+}
 
 /* 🌟 SETUP 真实流转进度条系统 🌟 */
-.progress-container { width: 100%; height: 6px; background: rgba(59, 130, 246, 0.1); border-radius: 10px; overflow: hidden; margin: 40px 0 15px 0; }
-.progress-bar { height: 100%; background: linear-gradient(90deg, #60A5FA, #3B82F6); border-radius: 10px; transition: width 0.4s ease-out; }
-.progress-text { font-size: 13px; color: #8AA2BA; text-align: center; height: 20px; margin-bottom: 35px; animation: pulse-text 1.5s infinite; }
-@keyframes pulse-text { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
+.progress-container {
+    width: 100%;
+    height: 6px;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 40px 0 15px 0;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #60A5FA, #3B82F6);
+    border-radius: 10px;
+    transition: width 0.4s ease-out;
+}
+
+.progress-text {
+    font-size: 13px;
+    color: #8AA2BA;
+    text-align: center;
+    height: 20px;
+    margin-bottom: 35px;
+    animation: pulse-text 1.5s infinite;
+}
+
+@keyframes pulse-text {
+    0% {
+        opacity: 0.7;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0.7;
+    }
+}
 
 /* 🌟 通用精细排版设计 🌟 */
-.logo-area { text-align: center; margin-bottom: 35px; }
-.logo-area h1 { font-size: 28px; font-weight: 700; letter-spacing: -1px; margin-bottom: 5px;}
-.logo-area h1 span { background: linear-gradient(135deg, #60A5FA, #3B82F6); -webkit-background-clip: text; color: transparent; }
-.logo-area .subtitle { font-size: 14px; color: var(--text-muted); font-weight: 300; }
-
-.login-form { display: flex; flex-direction: column; gap: 20px; }
-.input-group { display: flex; flex-direction: column; gap: 8px; }
-.input-group label { font-size: 13px; font-weight: 600; color: var(--text-main); margin-left: 5px; }
-.input-group input {
-    width: 100%; 
-    /* 将巨大的输入法表单压紧而显得精致商务 */
-    padding: 13px 18px; border-radius: 14px;
-    border: 1px solid rgba(138, 162, 186, 0.3);
-    background: rgba(255, 255, 255, 0.6); font-size: 14px; font-family: inherit;
-    color: var(--text-main); outline: none; transition: all 0.3s ease;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.01);
+.logo-area {
+    text-align: center;
+    margin-bottom: 35px;
 }
-.input-group input::placeholder { color: #A0B2C4; font-weight: 300; }
-.input-group input:hover { background: rgba(255, 255, 255, 0.85); }
+
+.logo-area h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 5px;
+}
+
+.logo-area h1 span {
+    background: linear-gradient(135deg, #60A5FA, #3B82F6);
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+.logo-area .subtitle {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 300;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-left: 5px;
+}
+
+.input-group input {
+    width: 100%;
+    /* 将巨大的输入法表单压紧而显得精致商务 */
+    padding: 13px 18px;
+    border-radius: 14px;
+    border: 1px solid rgba(138, 162, 186, 0.3);
+    background: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text-main);
+    outline: none;
+    transition: all 0.3s ease;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.01);
+}
+
+.input-group input::placeholder {
+    color: #A0B2C4;
+    font-weight: 300;
+}
+
+.input-group input:hover {
+    background: rgba(255, 255, 255, 0.85);
+}
+
 .input-group input:focus {
-    background: #FFFFFF; border-color: #60A5FA;
+    background: #FFFFFF;
+    border-color: #60A5FA;
     /* 取代奇怪的抖动变大，采用温柔呼吸外透光 */
-    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.15); 
+    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.15);
 }
 
 /* 🌟 极致交互水波纹按钮大改版 🌟 */
 .submit-btn {
-    margin-top: 10px; 
-    background: linear-gradient(135deg, #60A5FA, #3B82F6); 
-    color: white; font-size: 15px; font-weight: 600; font-family: inherit;
+    margin-top: 10px;
+    background: linear-gradient(135deg, #60A5FA, #3B82F6);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
     /* 身材被极具美学地压缩和压平 */
-    padding: 15px; border-radius: 14px;
-    border: none; cursor: pointer; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 15px;
+    border-radius: 14px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
     /* 波纹地基 */
-    position: relative; overflow: hidden;
+    position: relative;
+    overflow: hidden;
 }
-.submit-btn:hover:not(:disabled) { 
-    box-shadow: 0 12px 25px rgba(59, 130, 246, 0.35); 
-    background: linear-gradient(135deg, #60A5FA, #2563EB); /* 加深底色反馈 */
+
+.submit-btn:hover:not(:disabled) {
+    box-shadow: 0 12px 25px rgba(59, 130, 246, 0.35);
+    background: linear-gradient(135deg, #60A5FA, #2563EB);
+    /* 加深底色反馈 */
 }
-.submit-btn:active:not(:disabled) { 
-    transform: scale(0.98); /* 非常微小的物理形变反馈 */
-    box-shadow: 0 3px 10px rgba(59, 130, 246, 0.2); 
+
+.submit-btn:active:not(:disabled) {
+    transform: scale(0.98);
+    /* 非常微小的物理形变反馈 */
+    box-shadow: 0 3px 10px rgba(59, 130, 246, 0.2);
 }
-.submit-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.submit-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
 
 /* 注入纯血 JS 水波特效基类 */
 .ripple-span {
-    position: absolute; border-radius: 50%; opacity: 0; 
-    background: rgba(255, 255, 255, 0.4); pointer-events: none;
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0;
+    background: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
     transform: scale(0);
     animation: ripple-blast 0.6s linear;
 }
+
 @keyframes ripple-blast {
-    to { transform: scale(4); opacity: 0; }
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
 }
 
-.options, .footer { text-align: center; font-size: 13px; margin-top: 25px;}
-.forgot-pwd, .signup-link { color: #3B82F6; font-weight: 600; text-decoration: none; transition: opacity 0.2s; }
-.forgot-pwd:hover, .signup-link:hover { opacity: 0.7; }
-.error-msg { background: rgba(239, 68, 68, 0.1); color: #EF4444; border-radius: 10px; padding: 10px; font-size: 13px; text-align: center; }
+.options,
+.footer {
+    text-align: center;
+    font-size: 13px;
+    margin-top: 25px;
+}
+
+.forgot-pwd,
+.signup-link {
+    color: #3B82F6;
+    font-weight: 600;
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.forgot-pwd:hover,
+.signup-link:hover {
+    opacity: 0.7;
+}
+
+.error-msg {
+    background: rgba(239, 68, 68, 0.1);
+    color: #EF4444;
+    border-radius: 10px;
+    padding: 10px;
+    font-size: 13px;
+    text-align: center;
+}
 
 /* 🍎 macOS Apple Design System 🍎 */
-.zhi-app { background: #F5F5F7; min-height: 100vh; padding-top: 60px; color: #1D1D1F; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif; -webkit-font-smoothing: antialiased; }
+.zhi-app {
+    background: #F5F5F7;
+    min-height: 100vh;
+    padding-top: 60px;
+    color: #1D1D1F;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
 
 /* 悬浮磨砂态顶栏 */
-.zhi-header { position: fixed; top: 0; left: 0; right: 0; height: 60px; background: rgba(255, 255, 255, 0.72); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); z-index: 100; display: flex; justify-content: center; box-shadow: 0 1px 0px rgba(0,0,0,0.05); }
-.zhi-header-inner { width: 1000px; display: flex; align-items: center; padding: 0 20px; }
-.zhi-logo { color: #1D1D1F; font-size: 20px; font-weight: 700; margin-right: 40px; letter-spacing: -0.5px; }
+.zhi-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    z-index: 100;
+    display: flex;
+    justify-content: center;
+    box-shadow: 0 1px 0px rgba(0, 0, 0, 0.05);
+}
+
+.zhi-header-inner {
+    width: 1000px;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.zhi-logo {
+    color: #1D1D1F;
+    font-size: 20px;
+    font-weight: 700;
+    margin-right: 40px;
+    letter-spacing: -0.5px;
+}
 
 /* 胶囊导航栏 Segments */
-.zhi-nav { display: flex; align-items: center; gap: 8px; flex-grow: 1; height: 100%;}
-.zhi-nav-item { font-size: 14px; color: #86868B; cursor: pointer; padding: 6px 14px; position: relative; font-weight: 500; display: flex; align-items: center; border-radius: 14px; transition: all 0.2s;}
-.zhi-nav-item:hover { color: #1D1D1F; background: rgba(0,0,0,0.04); }
-.zhi-nav-item.active { color: #1D1D1F; font-weight: 600; background: rgba(0,0,0,0.06); }
-.zhi-nav-item.active::after { display: none; } /* 彻底弃用知乎死板底划线，沿用纯色气泡 */
+.zhi-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-grow: 1;
+    height: 100%;
+}
 
-.zhi-actions { display: flex; align-items: center; gap: 20px; }
-.zhi-btn-primary { background: #0071E3; color: #fff; border: none; border-radius: 16px; font-size: 14px; padding: 0 18px; height: 34px; cursor: pointer; font-weight: 500; box-shadow: 0 2px 8px rgba(0, 113, 227, 0.2); transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);}
-.zhi-btn-primary:hover:not(:disabled) { transform: scale(1.02); background: #0077ED; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3); }
-.zhi-btn-primary:active:not(:disabled) { transform: scale(0.96); }
-.zhi-btn-primary:disabled { opacity: 0.5; box-shadow: none; cursor: not-allowed; }
+.zhi-nav-item {
+    font-size: 14px;
+    color: #86868B;
+    cursor: pointer;
+    padding: 6px 14px;
+    position: relative;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    border-radius: 14px;
+    transition: all 0.2s;
+}
 
-.zhi-user-actions { display: flex; gap: 14px; font-size: 13px; color: #86868B; align-items: center; font-weight: 500; }
-.zhi-logout { cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: background 0.2s; } 
-.zhi-logout:hover { color: #E30000; background: rgba(227, 0, 0, 0.05); }
+.zhi-nav-item:hover {
+    color: #1D1D1F;
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.zhi-nav-item.active {
+    color: #1D1D1F;
+    font-weight: 600;
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.zhi-nav-item.active::after {
+    display: none;
+}
+
+/* 彻底弃用知乎死板底划线，沿用纯色气泡 */
+
+.zhi-actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.zhi-btn-primary {
+    background: #0071E3;
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    font-size: 14px;
+    padding: 0 18px;
+    height: 34px;
+    cursor: pointer;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.2);
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.zhi-btn-primary:hover:not(:disabled) {
+    transform: scale(1.02);
+    background: #0077ED;
+    box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3);
+}
+
+.zhi-btn-primary:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
+.zhi-btn-primary:disabled {
+    opacity: 0.5;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.zhi-user-actions {
+    display: flex;
+    gap: 14px;
+    font-size: 13px;
+    color: #86868B;
+    align-items: center;
+    font-weight: 500;
+}
+
+.zhi-logout {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.zhi-logout:hover {
+    color: #E30000;
+    background: rgba(227, 0, 0, 0.05);
+}
 
 /* 布局体系维持，拉宽间隙建立视觉喘息孔 */
-.zhi-main-layout { width: 1000px; margin: 24px auto; display: flex; justify-content: space-between; padding: 0 20px; align-items: flex-start; }
-.zhi-feed { width: 660px; display: flex; flex-direction: column; gap: 20px; }
-.zhi-sidebar { width: 280px; }
+.zhi-main-layout {
+    width: 1000px;
+    margin: 24px auto;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    align-items: flex-start;
+}
+
+.zhi-feed {
+    width: 660px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.zhi-sidebar {
+    width: 280px;
+}
 
 /* 关于面板 Apple Card Style */
-.zhi-side-card { background: #FFFFFF; box-shadow: 0 4px 20px rgba(0,0,0,0.04); border-radius: 18px; padding: 24px; }
-.zhi-side-card h3 { font-size: 16px; font-weight: 600; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 12px; margin-bottom: 14px; color: #1D1D1F;}
-.zhi-side-card p { font-size: 14px; color: #86868B; line-height: 1.6; }
+.zhi-side-card {
+    background: #FFFFFF;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    border-radius: 18px;
+    padding: 24px;
+}
+
+.zhi-side-card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    color: #1D1D1F;
+}
+
+.zhi-side-card p {
+    font-size: 14px;
+    color: #86868B;
+    line-height: 1.6;
+}
 
 /* 核心瀑布流漂浮大卡 */
-.zhi-feed-card { background: #FFFFFF; box-shadow: 0 2px 14px rgba(0,0,0,0.03); border-radius: 18px; padding: 24px 28px; display: flex; flex-direction: column; transition: box-shadow 0.3s cubic-bezier(0.2,0,0,1), transform 0.3s cubic-bezier(0.2,0,0,1); }
-.zhi-feed-card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.06); }
-.zhi-card-title { font-size: 19px; font-weight: 600; margin-bottom: 10px; color: #1D1D1F; cursor: pointer; letter-spacing: -0.3px;}
-.zhi-card-title:hover { color: #0071E3; }
-.zhi-card-excerpt { font-size: 15px; color: #424245; line-height: 1.6; margin-bottom: 20px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-weight: 400;}
-.zhi-card-footer { display: flex; align-items: center; font-size: 13px; gap: 16px; color: #86868B; }
+.zhi-feed-card {
+    background: #FFFFFF;
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.03);
+    border-radius: 18px;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.3s cubic-bezier(0.2, 0, 0, 1), transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.zhi-feed-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+.zhi-card-title {
+    font-size: 19px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #1D1D1F;
+    cursor: pointer;
+    letter-spacing: -0.3px;
+}
+
+.zhi-card-title:hover {
+    color: #0071E3;
+}
+
+.zhi-card-excerpt {
+    font-size: 15px;
+    color: #424245;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-weight: 400;
+}
+
+.zhi-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 13px;
+    color: #86868B;
+    margin-top: 8px;
+}
+
+.zhi-card-footer-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 55%;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.zhi-card-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+}
+
+.mac-interaction-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #9CA3AF;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.mac-interaction-item:hover {
+    color: #3B82F6;
+}
+.mac-interaction-item svg {
+    margin-top: -1px;
+}
+
+.more-dots {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #9CA3AF !important;
+    font-weight: 800 !important;
+    padding: 0 4px !important;
+    letter-spacing: 1px;
+}
+
+.ml-2 { margin-left: 8px; }
 
 /* 淡彩圆润标签组 */
-.zhi-tag { background: rgba(0, 113, 227, 0.08); color: #0071E3; padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 600;}
+.zhi-tag {
+    background: rgba(0, 113, 227, 0.08);
+    color: #0071E3;
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.category-tag {
+    flex-shrink: 0;
+}
 
 /* 文字类胶囊按钮 */
-.zhi-btn-text { background: none; border: none; color: #86868B; cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: 8px; font-family: inherit; transition: all 0.2s;}
-.zhi-btn-text:hover { color: #1D1D1F; background: rgba(0,0,0,0.04); }
-.zhi-delete:hover { color: #E30000; background: rgba(227, 0, 0, 0.05); }
+.zhi-btn-text {
+    background: none;
+    border: none;
+    color: #86868B;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-family: inherit;
+    transition: all 0.2s;
+}
 
-.zhi-empty { background: transparent; padding: 100px 0; text-align: center; color: #86868B; font-weight: 500;}
+.zhi-btn-text:hover {
+    color: #1D1D1F;
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.zhi-delete:hover {
+    color: #E30000;
+    background: rgba(227, 0, 0, 0.05);
+}
+
+.zhi-empty {
+    background: transparent;
+    padding: 100px 0;
+    text-align: center;
+    color: #86868B;
+    font-weight: 500;
+}
 
 /* Editor 果系拟物控制台容器 */
-.zhi-editor-layout { width: 1000px; margin: 40px auto 0; background: #fff; box-shadow: 0 8px 30px rgba(0,0,0,0.06); border-radius: 20px; padding: 24px; }
-.zhi-editor-nav { display: flex; align-items: center; margin-bottom: 20px; gap: 16px; border-bottom: 1px solid rgba(0,0,0,0.06); padding-bottom: 24px; }
-.zhi-title-input { flex-grow: 1; border: none; font-size: 26px; font-weight: 700; outline: none; letter-spacing: -0.5px; color: #1D1D1F;}
-.zhi-title-input::placeholder { color: #D2D2D7; font-weight: 500; }
-.zhi-editor-nav select { border: 1px solid rgba(0,0,0,0.1); padding: 6px 14px; border-radius: 8px; outline: none; font-size: 14px; font-weight: 500; color: #1D1D1F; background: #fff; cursor: pointer;}
-.zhi-editor-nav select:focus { border-color: #0071E3; }
+.zhi-editor-layout {
+    width: 1000px;
+    margin: 40px auto 0;
+    background: #fff;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    border-radius: 20px;
+    padding: 24px;
+}
+
+.zhi-editor-nav {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding-bottom: 24px;
+}
+
+.zhi-title-input {
+    flex-grow: 1;
+    border: none;
+    font-size: 26px;
+    font-weight: 700;
+    outline: none;
+    letter-spacing: -0.5px;
+    color: #1D1D1F;
+}
+
+.zhi-title-input::placeholder {
+    color: #D2D2D7;
+    font-weight: 500;
+}
+
+.zhi-editor-nav select {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 6px 14px;
+    border-radius: 8px;
+    outline: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #1D1D1F;
+    background: #fff;
+    cursor: pointer;
+}
+
+.zhi-editor-nav select:focus {
+    border-color: #0071E3;
+}
 
 /* 盖写底层 Vditor 原生略显锋利的边框组件背景以完全溶解入 MacOS 悬浮桌面 */
-.mac-vditor-override { border-radius: 12px !important; box-shadow: none !important; border: 1px solid rgba(0,0,0,0.04) !important; background: #fff !important; transition: box-shadow 0.3s;}
-.mac-vditor-override:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.03) !important; }
+.mac-vditor-override {
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    border: 1px solid rgba(0, 0, 0, 0.04) !important;
+    background: #fff !important;
+    transition: box-shadow 0.3s;
+}
+
+.mac-vditor-override:hover {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03) !important;
+}
+
 /* 重新将工具栏压紧，极其激进地剔除上下任何留白 */
-.vditor-toolbar { 
-    background: #FCFCFD !important; 
-    border-bottom: 1px solid rgba(0,0,0,0.03) !important; 
-    padding: 0px 10px !important; 
-    min-height: 36px !important; /* 强制拉低底线 */
+.vditor-toolbar {
+    background: #FCFCFD !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.03) !important;
+    padding: 0px 10px !important;
+    min-height: 36px !important;
+    /* 强制拉低底线 */
 }
 
 /* 斩底线：将内部所有把框架撑起来的肥胖按钮一并降维打薄 */
@@ -203,14 +697,15 @@ body {
     font-size: 16px !important;
     line-height: 1.8 !important;
     color: #333333 !important;
-    padding: 30px 40px !important; /* Typora 特有的宽裕呼吸内边距 */
+    padding: 30px 40px !important;
+    /* Typora 特有的宽裕呼吸内边距 */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
 }
 
-.mac-vditor-override .vditor-reset h1, 
-.mac-vditor-override .vditor-reset h2, 
+.mac-vditor-override .vditor-reset h1,
+.mac-vditor-override .vditor-reset h2,
 .mac-vditor-override .vditor-reset h3 {
-    border-bottom: none !important; 
+    border-bottom: none !important;
     font-weight: 600 !important;
     margin-top: 1.5em !important;
     margin-bottom: 0.8em !important;
@@ -254,13 +749,17 @@ body {
         opacity: 0;
         transform: translateY(46px) scale(0.93);
     }
+
     60% {
         opacity: 1;
-        transform: translateY(-8px) scale(1.01); /* 冲破边界的弹射更稳重 */
+        transform: translateY(-8px) scale(1.01);
+        /* 冲破边界的弹射更稳重 */
     }
+
     80% {
-        transform: translateY(2px) scale(0.995); 
+        transform: translateY(2px) scale(0.995);
     }
+
     100% {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -269,8 +768,10 @@ body {
 
 /* 编辑器容器本体入场动画：带物理回弹的缓动感 */
 .mac-vditor-override {
-    opacity: 0; /* 第一秒完全隐身等待调度 */
+    opacity: 0;
+    /* 第一秒完全隐身等待调度 */
 }
+
 /* 必须等到挂载成功且内部所有文字和布局落位，才会正式发出弹起集结号！ */
 .mac-vditor-override.ready {
     animation: macSpringUp 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards !important;
@@ -303,7 +804,8 @@ body {
     width: 32px;
     height: 32px;
     z-index: 10;
-    filter: drop-shadow(-4px 6px 8px rgba(0, 122, 255, 0.25)); /* 高级苹果发光拖影 */
+    filter: drop-shadow(-4px 6px 8px rgba(0, 122, 255, 0.25));
+    /* 高级苹果发光拖影 */
     animation: flightLevitate 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) infinite alternate;
 }
 
@@ -313,7 +815,8 @@ body {
     height: 2px;
     background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.08), transparent);
     border-radius: 1px;
-    right: 120%; /* 放流起始区：离得很远的地方 */
+    right: 120%;
+    /* 放流起始区：离得很远的地方 */
     opacity: 0;
 }
 
@@ -323,11 +826,13 @@ body {
     width: 40px;
     animation: blowWind 1.1s linear infinite;
 }
+
 .stream-2 {
     top: 50%;
     width: 65px;
     animation: blowWind 1.6s linear infinite 0.3s;
 }
+
 .stream-3 {
     top: 75%;
     width: 30px;
@@ -336,21 +841,46 @@ body {
 
 /* 柔和且坚定的波浪式定轨悬浮 */
 @keyframes flightLevitate {
-    0% { transform: translateY(-3px) rotate(10deg); }
-    100% { transform: translateY(6px) rotate(-6deg); }
+    0% {
+        transform: translateY(-3px) rotate(10deg);
+    }
+
+    100% {
+        transform: translateY(6px) rotate(-6deg);
+    }
 }
 
 /* 创造破壁的视觉差，线流向后疯狂飙逝 */
 @keyframes blowWind {
-    0% { transform: translateX(80px); opacity: 0; }
-    20% { opacity: 1; }
-    80% { opacity: 1; }
-    100% { transform: translateX(-160px); opacity: 0; }
+    0% {
+        transform: translateX(80px);
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 1;
+    }
+
+    80% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateX(-160px);
+        opacity: 0;
+    }
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* 🍎 iCloud 级私人订制：极简多级毛玻璃下拉菜单系统 */
@@ -369,9 +899,11 @@ body {
     gap: 8px;
     min-width: 110px;
     padding: 6px 14px;
-    background: #F3F4F6; /* 非常耐看的高级云朵灰 */
+    background: #F3F4F6;
+    /* 非常耐看的高级云朵灰 */
     border: 1px solid transparent;
-    border-radius: 8px; /* 圆角苹果风基因 */
+    border-radius: 8px;
+    /* 圆角苹果风基因 */
     color: #1D1D1F;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -386,6 +918,7 @@ body {
     transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     color: #8E8E93;
 }
+
 .mac-chevron.open {
     transform: rotate(180deg);
 }
@@ -400,9 +933,10 @@ body {
     background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
-    border: 1px solid rgba(0,0,0,0.06);
+    border: 1px solid rgba(0, 0, 0, 0.06);
     border-radius: 10px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.4) inset; /* 立体高亮微切边 */
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+    /* 立体高亮微切边 */
     padding: 6px;
     z-index: 1000;
     animation: dropScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -410,8 +944,15 @@ body {
 }
 
 @keyframes dropScaleIn {
-    0% { opacity: 0; transform: scale(0.95) translateY(-6px); }
-    100% { opacity: 1; transform: scale(1) translateY(0); }
+    0% {
+        opacity: 0;
+        transform: scale(0.95) translateY(-6px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
 }
 
 /* 单项菜单元素，Hover 激起高潮蓝色沉浸反馈 */
@@ -427,7 +968,8 @@ body {
 }
 
 .mac-dropdown-item:hover {
-    background: #007AFF; /* 苹果深蓝 */
+    background: #007AFF;
+    /* 苹果深蓝 */
     color: #FFF;
 }
 
@@ -440,6 +982,7 @@ body {
 .mac-check {
     color: #007AFF;
 }
+
 .mac-dropdown-item:hover .mac-check {
     color: #FFF;
 }
@@ -459,8 +1002,694 @@ body {
 }
 
 /* 🍎 强力修复：解决 Vditor 下半截点击无反应、鼠标形状没变成文本输入光标的塌陷区域问题 */
-/* 🍎 强力修复：解决 Vditor 下半截点击无反应、鼠标形状没变成文本输入光标的塌陷区域问题 */
 .mac-vditor-override .vditor-ir {
     min-height: calc(100vh - 220px) !important;
     padding-bottom: 60px !important;
 }
+
+/* 🍎 核心修复：统一光标粗细 — Chrome + Firefox 双杀兼容方案
+ * 
+ * 问题根因：
+ *   Vditor IR 模式用 display:inline-block + width:0 + height:0 隐藏 Markdown 标记符号（** 、` 等），
+ *   但 inline-block 元素在行内创建独立盒子，Firefox 的 caret 高度计算会参考该盒子的行高，
+ *   导致光标在 marker 旁边比纯文本末尾更粗（更高）。
+ *   Chrome 对 display:contents 有效但 Firefox 的 contenteditable 对 display:contents 有已知 bug。
+ *
+ * 修复策略：
+ *   1. 用 position:absolute 将折叠态 marker 从文档流中彻底脱离，不参与行框(line box)计算
+ *   2. 剔除 transition 对 marker 的影响（Firefox 在过渡过程中会产生中间态 caret 高度）
+ *   3. 确保 vditor-ir__node span 自身继承父元素的 line-height，不制造行高差异
+ */
+
+/* [1] marker 脱流：折叠态标记符号彻底脱离正常文档流，对 caret 计算完全透明 */
+.mac-vditor-override .vditor-ir__node:not(.vditor-ir__node--expand) .vditor-ir__marker {
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    /* 必须覆盖掉通配 transition，Firefox 对 position 变化中的 caret 有渲染抖动 */
+    transition: none !important;
+}
+
+/* [2] IR node 行高继承：确保包裹格式化文本的 span 不会产生与父元素 <p> 不同的行高 */
+.mac-vditor-override .vditor-ir__node {
+    line-height: inherit !important;
+}
+
+/* [3] 展开态恢复：当光标进入格式化区域，marker 需要正常显示（Vditor 会添加 --expand 类） */
+.mac-vditor-override .vditor-ir__node--expand .vditor-ir__marker {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transition: none !important;
+}
+
+/* ========================================================================= */
+/* 🌌 游龙果冻追尾光标 (Jelly Caret) — 视觉引擎基座 CSS                      */
+/* ========================================================================= */
+
+/* 核心绝技：屏蔽原生的刻板木头光标，将渲染权移交给 SVG 动画层 */
+.mac-vditor-override .vditor-ir .vditor-reset {
+    caret-color: transparent !important;
+}
+
+/* SVG 光标容器 — 无需 CSS transition，所有运动由 JS 物理引擎逐帧驱动 */
+.jelly-caret-svg {
+    will-change: transform, opacity;
+}
+
+/* ========================================================================= */
+/* 🏷️ Apple 流体毛玻璃多色光标标签 (Mac Tags Engine)                      */
+/* ========================================================================= */
+
+.mac-tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+}
+
+/* 标签本体：类似 WWDC 中的那种呼吸呼吸悬浮果冻感 */
+.mac-tag-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+    animation: mac-tag-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.mac-tag-pill:hover {
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.05);
+}
+
+@keyframes mac-tag-pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* 隐匿刺客：关闭小红叉，平常淡出，悬停怒吼 */
+.mac-tag-remove {
+    background: none;
+    border: none;
+    margin-left: 6px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.4;
+    transition: opacity 0.2s, transform 0.2s, color 0.2s;
+    /* 继承字体深色！ */
+    color: inherit; 
+    padding: 0;
+}
+
+.mac-tag-remove:hover {
+    opacity: 1;
+    transform: scale(1.25);
+    color: #F87171 !important; /* 强制红叉预警 */
+}
+
+/* 圆圈+号：折叠时的幽灵小精灵 */
+.mac-tag-add-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px dashed #9CA3AF;
+    background: transparent;
+    color: #6B7280;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+.mac-tag-add-btn:hover {
+    border-color: #3B82F6;
+    color: #3B82F6;
+    background: #EFF6FF;
+    transform: scale(1.1);
+    border-style: solid;
+}
+
+/* 激活后：变身为极度精致的小型输入框仓 */
+.mac-tag-input-small {
+    width: 110px;
+    height: 26px;
+    border-radius: 13px;
+    border: 1px solid #3B82F6;
+    outline: none;
+    padding: 0 10px;
+    font-size: 13px;
+    color: #374151;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    animation: mac-tag-input-expand 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.mac-tag-input-small::placeholder {
+    color: #9CA3AF;
+    font-size: 12px;
+}
+
+@keyframes mac-tag-input-expand {
+    0% { width: 40px; opacity: 0; }
+    100% { width: 110px; opacity: 1; }
+}
+
+/* ========================================================================= */
+/* 🛡️ Apple 全局危险警戒隔离舱 (Danger Modal System)                       */
+/* ========================================================================= */
+
+.mac-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(17, 24, 39, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    animation: mac-modal-fade-in 0.2s ease forwards;
+}
+
+@keyframes mac-modal-fade-in {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+.mac-modal-box {
+    background: #ffffff;
+    width: 380px;
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: mac-modal-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes mac-modal-pop {
+    0% { transform: scale(0.85) translateY(20px); opacity: 0; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.mac-modal-icon {
+    width: 56px;
+    height: 56px;
+    background: rgba(254, 226, 226, 1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    box-shadow: 0 0 0 8px rgba(254, 226, 226, 0.4);
+}
+
+.mac-modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 10px 0;
+}
+
+.mac-modal-desc {
+    font-size: 14px;
+    color: #6B7280;
+    line-height: 1.5;
+    margin: 0 0 26px 0;
+}
+
+.mac-modal-actions {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+.mac-modal-btn {
+    flex: 1;
+    padding: 10px 0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.mac-modal-btn.cancel {
+    background: #F3F4F6;
+    color: #374151;
+}
+
+.mac-modal-btn.cancel:hover:not(:disabled) {
+    background: #E5E7EB;
+    transform: translateY(-1px);
+}
+
+.mac-modal-btn.confirm {
+    background: #EF4444;
+    color: #ffffff;
+    box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3);
+}
+
+.mac-modal-btn.confirm:hover:not(:disabled) {
+    background: #DC2626;
+    box-shadow: 0 6px 10px -1px rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
+}
+
+.mac-modal-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* 列表原本的弱感知删除按钮，悬浮时露出猩红底色 */
+.mac-danger-btn {
+    transition: color 0.2s ease, background 0.2s ease;
+}
+.mac-danger-btn:hover {
+    color: #EF4444 !important;
+    background: rgba(254, 226, 226, 0.6);
+    padding: 2px 6px;
+    margin: -2px -6px;
+    border-radius: 4px;
+}
+
+/* 引擎过载红线警报（满10条舱位限制） */
+.mac-tag-limit-msg {
+    font-size: 12px;
+    color: #9CA3AF;
+    font-style: italic;
+    background: rgba(243, 244, 246, 0.6);
+    padding: 4px 8px;
+    border-radius: 8px;
+    animation: mac-tag-fade-in 0.4s ease;
+}
+@keyframes mac-tag-fade-in {
+    0% { opacity: 0; transform: translateX(5px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+
+/* ========================================================
+   极客阅读室组件区 (Mac Reading Room / ArticleDetail) 
+======================================================== */
+.mac-reading-room { background-color: #FBFBFD; min-height: 100vh; padding-bottom: 80px; }
+.mac-reading-back { color: #424245; font-size: 15px; font-weight: 500; cursor: pointer; transition: color 0.2s; }
+.mac-reading-back:hover { color: #0071E3; }
+.mac-reader-layout { max-width: 1200px; margin: 40px auto 0; display: flex; align-items: flex-start; gap: 40px; padding: 0 20px; }
+.mac-sidebar-container { flex-shrink: 0; position: sticky; top: 100px; display: flex; gap: 16px; align-items: flex-start; height: calc(100vh - 120px); }
+.mac-outline-toggler { cursor: pointer; color: #86868B; transition: all 0.2s ease; margin-top: 1px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; width: 32px; height: 32px; border-radius: 8px; background: rgba(0,0,0,0.02); }
+.mac-outline-toggler:hover { color: #0071E3; background: rgba(0,113,227,0.08); transform: scale(1.05); }
+.mac-reader-outline { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; white-space: nowrap; height: 100%; display: flex; flex-direction: column; }
+.mac-reader-outline h4 { font-size: 13px; color: #86868B; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); }
+.mac-outline-list { list-style: none; padding: 0; margin: 0; max-height: calc(100vh - 200px); overflow-y: auto; }
+.mac-outline-list li { font-size: 14px; color: #424245; padding: 6px 0; cursor: pointer; line-height: 1.5; transition: color 0.1s; border-left: 2px solid transparent; margin-bottom: 2px; }
+.mac-outline-list li:hover { color: #0071E3; border-left-color: #0071E3; padding-left: calc(var(--indent, 0) + 4px) !important; }
+.mac-outline-empty { font-size: 13px; color: #9CA3AF; }
+.mac-reader-content { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 30px; }
+.mac-article-glass-card { background: #FFFFFF; border-radius: 20px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04); padding: 40px; }
+.mac-article-title { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; color: #1D1D1F; margin-bottom: 24px; }
+.mac-article-meta-ribbon { display: flex; justify-content: space-between; align-items: center; padding-bottom: 24px; border-bottom: 1px solid rgba(0, 0, 0, 0.06); margin-bottom: 30px; }
+.mac-article-meta-left, .mac-article-meta-right { display: flex; align-items: center; gap: 12px; }
+.mac-article-admin-actions { display: flex; gap: 12px; background: #F5F5F7; padding: 12px 16px; border-radius: 12px; margin-bottom: 30px; }
+.mac-edit-btn { background: #FFFFFF; border: 1px solid rgba(0,0,0,0.1); color: #1D1D1F; font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 8px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+.mac-edit-btn:hover { border-color: #0071E3; color: #0071E3; }
+.mac-markdown-stream { font-size: 16px; line-height: 1.8; color: #1D1D1F; }
+.mac-comments-zone { background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); padding: 24px; }
+.mac-comments-zone h3 { font-size: 18px; font-weight: 600; color: #1D1D1F; margin-bottom: 24px; }
+.mac-comment-trigger { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-bottom: 20px; }
+.mac-comment-input { width: 100%; min-height: 80px; resize: vertical; border: 2px solid #F5F5F7; border-radius: 12px; padding: 16px; font-size: 15px; outline: none; transition: all 0.2s; background: #FAFAFC; }
+.mac-comment-input:focus { border-color: #0071E3; background: #FFFFFF; box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1); }
+.mac-comment-submit { background: #0071E3; color: white; border: none; padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.mac-comment-submit:disabled { background: #D2D2D7; cursor: not-allowed; }
+.mac-comments-stream { display: flex; flex-direction: column; gap: 16px; }
+.mac-comment-item { display: flex; gap: 16px; }
+.mac-comment-avatar { width: 40px; height: 40px; border-radius: 50%; background: #0071E3; color: white; display: flex; justify-content: center; align-items: center; font-weight: 700; font-size: 18px; flex-shrink: 0; }
+.mac-comment-body { flex-grow: 1; background: #F5F5F7; padding: 16px; border-radius: 0 16px 16px 16px; }
+.mac-comment-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.mac-comment-head strong { font-size: 14px; color: #1D1D1F; }
+.mac-comment-time { font-size: 12px; color: #86868B; }
+.mac-comment-text { font-size: 15px; color: #424245; line-height: 1.6; }
+@media (max-width: 1000px) { .mac-reader-outline { display: none; } }
+/* 骨架屏炫光动效体系 */
+@keyframes mac-shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.skeleton-pulse {
+  background: #f6f7f8;
+  background-image: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 1000px 100%;
+  animation: mac-shimmer 2s infinite linear;
+  border-radius: 4px;
+}
+
+.mac-skeleton-title {
+  height: 42px;
+  width: 60%;
+  margin-bottom: 20px;
+  border-radius: 8px;
+}
+
+.mac-skeleton-meta {
+  height: 24px;
+  width: 30%;
+  border-radius: 6px;
+}
+
+.mac-skeleton-text {
+  height: 18px;
+  border-radius: 4px;
+}
+/* ==================================================== */
+/* 🛡️ 针对 Vditor 代码选取/自动完成弹窗的装甲重绘 */
+/* ==================================================== */
+.vditor-hint {
+    background: rgba(255, 255, 255, 0.96) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 1px rgba(0,0,0,0.2) !important;
+    border-radius: 10px !important;
+    border: none !important;
+    z-index: 1000 !important;
+    padding: 6px !important;
+    overflow: hidden !important;
+}
+
+.vditor-hint button {
+    padding: 6px 14px !important;
+    border-radius: 6px !important;
+    color: #1D1D1F !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    text-align: left !important;
+    transition: all 0.1s ease !important;
+    box-shadow: none !important;
+}
+
+.vditor-hint button:hover, .vditor-hint button.vditor-hint--current {
+    background: #0071E3 !important;
+    color: #FFFFFF !important;
+}
+
+/* ==================================================== */
+/* ⚠️ 黑客宇宙 404 故障失真层 (Glitch Void Room)       */
+/* ==================================================== */
+.glitch-void-container {
+    width: 100vw;
+    height: 100vh;
+    background: #060606;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+
+.glitch-wrapper {
+    position: relative;
+    margin-bottom: 40px;
+}
+
+.glitch {
+    font-size: 64px;
+    font-weight: 900;
+    text-transform: uppercase;
+    position: relative;
+    color: #FFFFFF;
+    letter-spacing: 4px;
+    text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75), -0.025em -0.05em 0 rgba(0, 255, 0, 0.75), 0.025em 0.05em 0 rgba(0, 0, 255, 0.75);
+    animation: glitch 1000ms infinite;
+}
+
+.glitch::before, .glitch::after {
+    content: attr(data-glitch);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #060606;
+}
+
+.glitch::before {
+    left: 3px;
+    text-shadow: -2px 0 red;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim 5s infinite linear alternate-reverse;
+}
+
+.glitch::after {
+    left: -3px;
+    text-shadow: -2px 0 blue;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim2 5s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim {
+    0% { clip: rect(48px, 9999px, 83px, 0); }
+    20% { clip: rect(74px, 9999px, 12px, 0); }
+    40% { clip: rect(10px, 9999px, 52px, 0); }
+    60% { clip: rect(35px, 9999px, 20px, 0); }
+    80% { clip: rect(89px, 9999px, 60px, 0); }
+    100% { clip: rect(34px, 9999px, 44px, 0); }
+}
+
+@keyframes glitch-anim2 {
+    0% { clip: rect(65px, 9999px, 100px, 0); }
+    20% { clip: rect(12px, 9999px, 80px, 0); }
+    40% { clip: rect(42px, 9999px, 2px, 0); }
+    60% { clip: rect(15px, 9999px, 32px, 0); }
+    80% { clip: rect(81px, 9999px, 94px, 0); }
+    100% { clip: rect(24px, 9999px, 65px, 0); }
+}
+
+@keyframes glitch {
+    0% { text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75), -0.05em -0.025em 0 rgba(0, 255, 0, 0.75), 0.025em 0.05em 0 rgba(0, 0, 255, 0.75); }
+    14% { text-shadow: 0.05em 0 0 rgba(255, 0, 0, 0.75), -0.05em -0.025em 0 rgba(0, 255, 0, 0.75), 0.025em 0.05em 0 rgba(0, 0, 255, 0.75); }
+    15% { text-shadow: -0.05em -0.025em 0 rgba(255, 0, 0, 0.75), 0.025em 0.025em 0 rgba(0, 255, 0, 0.75), -0.05em -0.05em 0 rgba(0, 0, 255, 0.75); }
+    49% { text-shadow: -0.05em -0.025em 0 rgba(255, 0, 0, 0.75), 0.025em 0.025em 0 rgba(0, 255, 0, 0.75), -0.05em -0.05em 0 rgba(0, 0, 255, 0.75); }
+    50% { text-shadow: 0.025em 0.05em 0 rgba(255, 0, 0, 0.75), 0.05em 0 0 rgba(0, 255, 0, 0.75), 0 -0.05em 0 rgba(0, 0, 255, 0.75); }
+    99% { text-shadow: 0.025em 0.05em 0 rgba(255, 0, 0, 0.75), 0.05em 0 0 rgba(0, 255, 0, 0.75), 0 -0.05em 0 rgba(0, 0, 255, 0.75); }
+    100% { text-shadow: -0.025em 0 0 rgba(255, 0, 0, 0.75), -0.025em -0.025em 0 rgba(0, 255, 0, 0.75), -0.025em -0.05em 0 rgba(0, 0, 255, 0.75); }
+}
+
+.terminal-escape {
+    color: #4A90E2;
+    font-size: 15px;
+    letter-spacing: 2px;
+    opacity: 0.9;
+}
+
+.blinking-cursor {
+    display: inline-block;
+    width: 10px;
+    background-color: #4A90E2;
+    animation: blink 1s step-end infinite;
+    margin-right: 8px;
+}
+
+.countdown-number {
+    font-size: 18px;
+    font-weight: bold;
+    color: #FFF;
+    background: #E30000;
+    padding: 0 6px;
+    border-radius: 4px;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+
+/* 评论区 Vditor 工具栏：覆盖原生 float 布局为 flex，强制单行 */
+.mac-comment-trigger .vditor-toolbar,
+.mac-comments-zone .vditor-toolbar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow: hidden !important;
+    padding: 2px 4px !important;
+    white-space: nowrap !important;
+    align-items: center !important;
+}
+
+/* 杀掉 Vditor 原生的 __br 换行元素 */
+.mac-comment-trigger .vditor-toolbar__br,
+.mac-comments-zone .vditor-toolbar__br {
+    display: none !important;
+    width: 0 !important;
+}
+
+/* 覆盖原生 float:left 为正常 flex item */
+.mac-comment-trigger .vditor-toolbar__item,
+.mac-comments-zone .vditor-toolbar__item {
+    float: none !important;
+    padding: 0 3px !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+/* 按钮内部 padding 压缩 */
+.mac-comment-trigger .vditor-toolbar__item > button,
+.mac-comments-zone .vditor-toolbar__item > button,
+.mac-comment-trigger .vditor-toolbar__item .vditor-tooltipped,
+.mac-comments-zone .vditor-toolbar__item .vditor-tooltipped {
+    padding: 4px !important;
+    line-height: 1 !important;
+    height: auto !important;
+    width: auto !important;
+}
+
+/* 默认图标尺寸 14px */
+.mac-comment-trigger .vditor-toolbar__item svg,
+.mac-comments-zone .vditor-toolbar__item svg {
+    width: 14px !important;
+    height: 14px !important;
+    display: block !important;
+}
+
+/* 分隔线紧凑化 + 取消浮动 */
+.mac-comment-trigger .vditor-toolbar__divider,
+.mac-comments-zone .vditor-toolbar__divider {
+    float: none !important;
+    margin: 0 3px !important;
+    border-left: 1px solid #E5E7EB !important;
+    height: 16px !important;
+}
+
+/* ===== 窄宽度自适应：容器 < 480px 时进一步压缩 ===== */
+.mac-comments-zone {
+    container-type: inline-size;
+}
+
+@container (max-width: 480px) {
+    .vditor-toolbar__item {
+        padding: 0 1px !important;
+    }
+    .vditor-toolbar__item > button,
+    .vditor-toolbar__item .vditor-tooltipped {
+        padding: 3px !important;
+    }
+    .vditor-toolbar__item svg {
+        width: 12px !important;
+        height: 12px !important;
+    }
+    .vditor-toolbar__divider {
+        margin: 0 1px !important;
+    }
+}
+
+@container (max-width: 360px) {
+    .vditor-toolbar__item {
+        padding: 0 !important;
+    }
+    .vditor-toolbar__item > button,
+    .vditor-toolbar__item .vditor-tooltipped {
+        padding: 2px !important;
+    }
+    .vditor-toolbar__item svg {
+        width: 11px !important;
+        height: 11px !important;
+    }
+    .vditor-toolbar__divider {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+}
+
+/* ===== 窄面板评论区紧凑化（CodePlayground 等场景） ===== */
+@container (max-width: 600px) {
+    /* 卡片整体：缩小 padding、圆角、阴影 */
+    .mac-comments-zone {
+        padding: 12px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+    }
+    /* 标题 */
+    .mac-comments-zone h3 {
+        font-size: 14px !important;
+        margin-bottom: 8px !important;
+    }
+    /* 编辑器内字号 */
+    .mac-comments-zone .vditor-reset {
+        font-size: 13px !important;
+    }
+    /* 编辑器容器高度 + 去掉多余的底部间距 */
+    .mac-comments-zone #embedded-comment-editor {
+        min-height: 100px !important;
+        margin-bottom: 4px !important;
+    }
+    /* Vditor 编辑区域本体高度限制 */
+    .mac-comments-zone .vditor-ir {
+        min-height: 60px !important;
+        padding-bottom: 8px !important;
+    }
+    /* "暂无评论。" 等空态文字 */
+    .mac-comments-stream > div {
+        font-size: 13px !important;
+        padding: 16px 0 !important;
+    }
+    /* 评论头像 */
+    .mac-comment-avatar {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 13px !important;
+    }
+    /* 评论条目间距 */
+    .mac-comment-item {
+        gap: 10px !important;
+    }
+    /* 评论体 */
+    .mac-comment-body {
+        padding: 8px 10px !important;
+    }
+    .mac-comment-head strong {
+        font-size: 13px !important;
+    }
+    .mac-comment-text {
+        font-size: 13px !important;
+    }
+    .mac-comment-actions {
+        font-size: 12px !important;
+        gap: 10px !important;
+        margin-top: 4px !important;
+    }
+    /* 提交按钮 */
+    .mac-comment-submit {
+        font-size: 12px !important;
+        padding: 5px 12px !important;
+    }
+    /* 触发区间距 */
+    .mac-comment-trigger {
+        gap: 4px !important;
+        margin-bottom: 10px !important;
+    }
+    /* 评论列表间距 */
+    .mac-comments-stream {
+        gap: 10px !important;
+    }
+}
+

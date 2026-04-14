@@ -1,6 +1,9 @@
 import os
 import uuid
 import shutil
+import urllib.request
+import urllib.error
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from typing import Any
 
@@ -41,3 +44,63 @@ def upload_image(
         
     # 我们将在主线中暴露 /static/images/... 代理到这里
     return {"url": f"/api/static/images/{safe_filename}", "message": "图床资源绑定就绪。"}
+
+
+class LinkFetchReq(BaseModel):
+    url: str
+
+@router.post("/fetch_image")
+def fetch_external_image(
+    req: LinkFetchReq,
+    current_user: models.User = Depends(auth.get_current_user)
+) -> Any:
+    """
+    专门为编辑器 Vditor 开启的“暗网”抓取后门：
+    只要是从剪贴板贴进来的外部公网图档链接，全部走这里由服务器代为打捞保存，借此彻底抹杀外部图床失效带来的风险！
+    """
+    image_url = req.url
+    if not image_url.startswith("http"):
+        raise HTTPException(status_code=400, detail="拦截失败，所提供的标的非网络 HTTP 寻参制式。")
+
+    try:
+        # 防护伪装，防止各种极客安全图床（比如防盗链机制）的低级阻拦
+        req_obj = urllib.request.Request(
+            image_url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        )
+        
+        with urllib.request.urlopen(req_obj, timeout=8.0) as response:
+            content = response.read()
+            
+            # 使用原图格式截取；如果极度变态不带后缀的，我们就强制洗贴个 .jpg 狗皮膏药
+            ext = "jpg"
+            possible_ext = image_url.split(".")[-1].split("?")[0].lower()
+            if possible_ext in ["jpg", "jpeg", "png", "gif", "webp"]:
+                ext = possible_ext
+                    
+            safe_filename = f"{uuid.uuid4().hex}.{ext}"
+            file_path = os.path.join(UPLOAD_DIR, safe_filename)
+            
+            # 正式物理写入！存入和自主上传同一片绝对领域！
+            with open(file_path, "wb") as f:
+                f.write(content)
+                
+            new_url = f"/api/static/images/{safe_filename}"
+            
+            # 严格遵照 Vditor 那套极度霸道且固化的要求返回洗白结果
+            return {
+                "msg": "走私原图本地洗白成功",
+                "code": 0,
+                "data": {
+                    "originalURL": image_url,
+                    "url": new_url
+                }
+            }
+            
+    except Exception as e:
+        # 不能用 500 把人家弹死，返回 code 1 告知前端打平重来或者原样展示
+        print(f"走私外源图库被彻底粉碎反噬: {e}")
+        return {
+            "msg": f"抓取外哨资源失败: {str(e)}",
+            "code": 1
+        }

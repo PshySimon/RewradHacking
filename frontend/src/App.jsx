@@ -5,6 +5,10 @@ import Login from './pages/Login';
 import Setup from './pages/Setup';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
+import ArticleDetail from './pages/ArticleDetail';
+import CodePlayground from './pages/CodePlayground';
+import Onboarding from './pages/Onboarding';
+import ErrorPage from './pages/ErrorPage';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('access_token');
@@ -39,8 +43,12 @@ function App() {
       <Routes>
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/editor" element={<ProtectedRoute><Editor /></ProtectedRoute>} />
+        <Route path="/article/:id" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
+        <Route path="/codeplay/:id" element={<ProtectedRoute><CodePlayground /></ProtectedRoute>} />
+        <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route path="/login" element={<Login />} />
         <Route path="/setup" element={<Setup />} />
+        <Route path="*" element={<ErrorPage code={404} message="PORTAL NOT FOUND" />} />
       </Routes>
     );
 }

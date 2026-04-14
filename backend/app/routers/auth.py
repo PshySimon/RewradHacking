@@ -48,27 +48,30 @@ def login_for_access_token(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/setup_admin", response_model=schemas.UserOut)
-def setup_admin(user: schemas.UserCreate, db: Session = Depends(database.get_db)) -> Any:
+def setup_admin(user: schemas.AdminSetupCreate, db: Session = Depends(database.get_db)) -> Any:
     """ 系统的根源安装器：只允许存活并在整个数据库没有管理员时被调用一次 """
     # 终极一键锁死安全网
     admin_exists = db.query(models.User).filter(models.User.role == models.RoleEnum.admin).first()
     if admin_exists:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="非法操作拦截：本系统已经存在系统级领导者并已深度锁定安装大门。"
+            detail="非常抱歉，系统已被初始化过，无法再次初始化。"
         )
     
     # 查重防止意外异常撞名
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:
-        raise HTTPException(status_code=400, detail="该超管名目前甚至被一个普通游客先注册了，请高规格一点换一个名字！")
+        raise HTTPException(status_code=400, detail="该管理员用户名已被部分用户占用，请更换。")
         
     hashed_pwd = auth.get_password_hash(user.password)
-    # 为此账号赋能超管光环
+    # 为此账号赋能超管光环，并且满配置下发！
     new_admin = models.User(
         username=user.username,
         hashed_password=hashed_pwd,
-        role=models.RoleEnum.admin
+        role=models.RoleEnum.admin,
+        nickname=user.nickname,
+        birthday=user.birthday,
+        is_profile_completed=True
     )
     db.add(new_admin)
     db.commit()
