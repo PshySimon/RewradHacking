@@ -12,13 +12,15 @@ import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { autocompletion } from '@codemirror/autocomplete';
 import { indentUnit } from '@codemirror/language';
 import { leetcodeCompletionSource } from '../utils/leetcodeCompletions';
+import { normalizeVditorMarkdown } from '../utils/vditorMarkdown';
+import { buildVditorEditorOptions, buildVditorRenderOptions } from '../utils/vditorOptions';
 
 const Vditor = window.Vditor;
 
 // 题解弹窗内嵌编辑器
 const SolutionEditor = ({ onInstanceReady }) => {
     React.useEffect(() => {
-        const vditor = new Vditor('solution-modal-editor', {
+        const vditor = new Vditor('solution-modal-editor', buildVditorEditorOptions({
             height: 300,
             mode: 'ir',
             placeholder: '写下你的题解...',
@@ -31,7 +33,7 @@ const SolutionEditor = ({ onInstanceReady }) => {
             after: () => {
                 onInstanceReady(vditor);
             }
-        });
+        }));
         return () => {
             try { vditor.destroy(); } catch (e) {}
         };
@@ -139,7 +141,7 @@ export default function CodePlayground() {
     };
 
     const handleSaveSolutionDraft = async (triggerClose = false) => {
-        const content = solutionVditor ? solutionVditor.getValue() : '';
+        const content = solutionVditor ? normalizeVditorMarkdown(solutionVditor.getValue()) : '';
         const token = localStorage.getItem('access_token');
         try {
             await axios.post('/api/drafts/', {
@@ -156,7 +158,7 @@ export default function CodePlayground() {
     const handleApplySolutionDraft = (d) => {
         macConfirm("加载草稿", "确定加载该历史草稿吗？当前未保存的输入将被覆盖。", () => {
             setSolutionTitle(d.title);
-            if(solutionVditor) solutionVditor.setValue(d.content);
+            if(solutionVditor) solutionVditor.setValue(normalizeVditorMarkdown(d.content));
             setIsSolDraftOpen(false);
         });
     };
@@ -218,10 +220,10 @@ export default function CodePlayground() {
             document.title = `${articleData.title} - RewardHacking`;
             setArticle(articleData);
             if (previewRef.current && window.Vditor) {
-                window.Vditor.preview(previewRef.current, articleData.content, {
+                window.Vditor.preview(previewRef.current, normalizeVditorMarkdown(articleData.content), buildVditorRenderOptions({
                     theme: { current: 'light' },
                     hljs: { style: 'github' } 
-                });
+                }));
             }
             
             // 【终极裁决】：绝不由于闭包覆盖，草稿至上，模板保底。
@@ -307,10 +309,10 @@ export default function CodePlayground() {
         if (viewingSolution && Vditor) {
             const el = document.getElementById('solution-preview-container');
             if (el) {
-                Vditor.preview(el, viewingSolution.content, {
+                Vditor.preview(el, normalizeVditorMarkdown(viewingSolution.content), buildVditorRenderOptions({
                     theme: { current: 'light' },
                     hljs: { style: 'github' }
-                });
+                }));
             }
         }
     }, [viewingSolution]);
@@ -342,7 +344,7 @@ export default function CodePlayground() {
     // 题解发布
     const handlePublishSolution = async () => {
         if (!solutionVditor) return;
-        const content = solutionVditor.getValue();
+        const content = normalizeVditorMarkdown(solutionVditor.getValue());
         if (!solutionTitle.trim() || !content.trim()) return macAlert('发布失败：标题和代码内容不能为空。', '内容缺失');
         setIsPublishingSolution(true);
         try {

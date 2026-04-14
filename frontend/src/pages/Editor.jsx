@@ -7,6 +7,7 @@ import JellyCaret from '../components/JellyCaret';
 import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
 import { CodeLayout, InterviewLayout, KnowledgeLayout } from '../components/editor-templates';
+import { normalizeVditorMarkdown } from '../utils/vditorMarkdown';
 import { buildVditorEditorOptions } from '../utils/vditorOptions';
 
 export default function Editor() {
@@ -52,7 +53,7 @@ export default function Editor() {
             setTitle(draft.title);
             if (draft.tags) setTags(draft.tags.split(',').filter(Boolean));
             if (draft.code_template) setCodeTemplate(draft.code_template);
-            if (vditorObj) vditorObj.setValue(draft.content);
+            if (vditorObj) vditorObj.setValue(normalizeVditorMarkdown(draft.content));
             setIsDraftDropdownOpen(false);
         });
     };
@@ -79,7 +80,7 @@ export default function Editor() {
     };
 
     const handleSaveDraft = async (triggerExit = false) => {
-        const content = vditorObj ? vditorObj.getValue() : '';
+        const content = vditorObj ? normalizeVditorMarkdown(vditorObj.getValue()) : '';
         try {
             await axios.post('/api/drafts/', {
                 title, content, code_template: codeTemplate, tags: tags.join(','), category: solveForId ? 'solution' : category, target_id: solveForId || null
@@ -198,7 +199,7 @@ export default function Editor() {
 
     useEffect(() => {
         if (isEditorReady && vditorObj && initialContent) {
-            vditorObj.setValue(initialContent);
+            vditorObj.setValue(normalizeVditorMarkdown(initialContent));
         }
     }, [isEditorReady, vditorObj, initialContent]);
 
@@ -269,6 +270,38 @@ export default function Editor() {
                     // 知乎特供图文混排会导致公式彻底炸裂和无端换行，咱们直接在它触碰 Vditor 核心前进行拦截。
                     const irContainer = document.querySelector('.vditor-ir');
                     if (irContainer) {
+                        const toDebugSnippet = (value) => {
+                            if (typeof value !== 'string') return value;
+                            return value.length > 600 ? `${value.slice(0, 600)}...[truncated]` : value;
+                        };
+
+                        const debugPasteState = (stage, payload = {}) => {
+                            console.debug(`[VditorPasteDebug] ${stage}`, Object.fromEntries(
+                                Object.entries(payload).map(([key, value]) => [key, toDebugSnippet(value)]),
+                            ));
+                        };
+
+                        const normalizeEditorContent = (reason = 'post-paste') => {
+                            requestAnimationFrame(() => {
+                                if (!vditor) return;
+                                const currentValue = vditor.getValue();
+                                const normalizedValue = normalizeVditorMarkdown(currentValue);
+                                debugPasteState(`${reason}:editor-frame`, {
+                                    currentValue,
+                                    normalizedValue,
+                                });
+                                if (normalizedValue !== currentValue) {
+                                    vditor.setValue(normalizedValue);
+                                    requestAnimationFrame(() => {
+                                        if (!vditor) return;
+                                        debugPasteState(`${reason}:after-setValue`, {
+                                            finalValue: vditor.getValue(),
+                                        });
+                                    });
+                                }
+                            });
+                        };
+
                         // =============== 🚑[Vditor 核心结构塌陷同步急救舱] ===============
                         // 根治：用户 `Ctrl+X` 全选剪切后，浏览器原生机制会销毁底层 `<p>` 容器，导致光标迷失在外部 padding 虚空中。
                         // 此时若粘贴，文本完全脱离区块，造成首行幽灵换行、无法回删，且光标极度错位（显示在极上方）。
@@ -320,6 +353,7 @@ export default function Editor() {
 
                             const html = e.clipboardData.getData('text/html');
                             let plainText = e.clipboardData.getData('text/plain');
+                            debugPasteState('clipboard:raw', { plainText, html });
 
                             let isInsideCode = false;
                             if (sel.rangeCount > 0 && sel.anchorNode) {
@@ -328,6 +362,7 @@ export default function Editor() {
                                     isInsideCode = elm.closest('.vditor-ir__node[data-type="code-block"]') !== null;
                                 }
                             }
+                            debugPasteState('clipboard:context', { isInsideCode });
 
                             if (!isInsideCode && plainText) {
                                 let injectPlainText = false;
@@ -370,10 +405,25 @@ export default function Editor() {
                                     }
                                 }
 
+                                const normalizedPlainText = normalizeVditorMarkdown(plainText);
+                                if (normalizedPlainText !== plainText) {
+                                    plainText = normalizedPlainText;
+                                    injectPlainText = true;
+                                }
+
+                                debugPasteState('clipboard:normalized-plainText', {
+                                    injectPlainText,
+                                    plainText,
+                                });
+
                                 if (injectPlainText) {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    if (vditor) vditor.insertValue(plainText);
+                                    if (vditor) {
+                                        vditor.insertValue(plainText);
+                                        debugPasteState('insertValue:plainText', { plainText });
+                                    }
+                                    normalizeEditorContent('plainText-branch');
                                     return;
                                 }
                             }
@@ -454,8 +504,13 @@ export default function Editor() {
                                 let finalHtml = doc.body.innerHTML;
                                 // 大道至简：直接在准备丢给编辑器的最后一行 HTML 源码里加上物理空格！
                                 finalHtml = finalHtml.replace(/\$([^\$\n<>]+?)\$/g, ' $ $1 $ ');
+                                debugPasteState('insertHTML:finalHtml', { finalHtml });
                                 document.execCommand('insertHTML', false, finalHtml);
+                                normalizeEditorContent('html-branch');
+                                return;
                             }
+
+                            normalizeEditorContent('default-branch');
                         }, true); // 抢占最高级捕获权，先斩后奏
                     }
                     // ====================================================================
@@ -503,7 +558,7 @@ export default function Editor() {
     }, []);
 
     const handlePublish = async () => {
-        const content = vditorObj ? vditorObj.getValue() : '';
+        const content = vditorObj ? normalizeVditorMarkdown(vditorObj.getValue()) : '';
         if (!title.trim() || !content.trim()) return macAlert("发布失败：标题和正文不可以为空。", "内容缺失");
 
         setIsPublishing(true);

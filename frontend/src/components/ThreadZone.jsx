@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { normalizeVditorMarkdown } from '../utils/vditorMarkdown';
+import { buildVditorEditorOptions, buildVditorRenderOptions } from '../utils/vditorOptions';
 const Vditor = window.Vditor;
 
 // 局部的评论区阅读引擎（轻量化：用 md2html 纯转换代替重型 preview）
@@ -8,7 +10,7 @@ const CommentPreview = ({ content }) => {
     React.useEffect(() => {
         if (content && window.Vditor) {
             // md2html 通常返回 Promise 且需要基础 options 以定位依赖库，这里指向我们已经部署的 local cdn
-            Promise.resolve(window.Vditor.md2html(content, { cdn: '/vendor/vditor' }))
+            Promise.resolve(window.Vditor.md2html(normalizeVditorMarkdown(content), buildVditorRenderOptions()))
                 .then(res => setHtml(res))
                 .catch(err => console.error("md2html failed:", err));
         }
@@ -19,7 +21,7 @@ const CommentPreview = ({ content }) => {
 // 局部的评论区富文本输入引擎
 const EmbeddedCommentEditor = ({ onInstanceReady }) => {
     React.useEffect(() => {
-        const vditor = new Vditor('embedded-comment-editor', {
+        const vditor = new Vditor('embedded-comment-editor', buildVditorEditorOptions({
             height: 120,
             mode: 'ir',
             placeholder: '输入评论...',
@@ -39,7 +41,7 @@ const EmbeddedCommentEditor = ({ onInstanceReady }) => {
             after: () => {
                 onInstanceReady(vditor);
             }
-        });
+        }));
         return () => {
             try { vditor.destroy(); } catch (e) {}
         };

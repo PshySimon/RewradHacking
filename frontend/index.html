@@ -2,78 +2,123 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='14' height='14' rx='3' fill='%2338BDF8'/%3E%3Crect x='8' y='8' width='14' height='14' rx='3' fill='%230071E3' stroke='white' stroke-width='2'/%3E%3C/svg%3E" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RewardHacking</title>
-  <!-- 💥 越过构建层：采用极其无赖但坚如磐石的终结强挂模式，直接摄入咱们拿出来的本地源码 -->
-  <link rel="stylesheet" href="/vendor/vditor/dist/index.css" />
-  <script src="/vendor/vditor/dist/index.min.js"></script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='2' width='14' height='14' rx='3' fill='%2338BDF8'/%3E%3Crect x='8' y='8' width='14' height='14' rx='3' fill='%230071E3' stroke='white' stroke-width='2'/%3E%3C/svg%3E" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RewardHacking</title>
+    <!-- 💥 越过构建层：采用极其无赖但坚如磐石的终结强挂模式，直接摄入咱们拿出来的本地源码 -->
+    <link rel="stylesheet" href="/vendor/vditor/dist/index.css" />
+    <script src="/vendor/vditor/dist/index.min.js"></script>
 </head>
 
 <body>
 
-  <!-- ========================================================================= -->
-  <!-- 🛡️ Nexus 破晓之盾：抗击 FOUC (无样式内容闪现) 的终极单兵防御阵线      -->
-  <!-- ========================================================================= -->
-  <div id="nexus-global-loader" style="
+    <!-- ========================================================================= -->
+    <!-- 🛡️ Nexus 破晓之盾：抗击 FOUC (无样式内容闪现) 的终极单兵防御阵线      -->
+    <!-- ========================================================================= -->
+    <div id="nexus-global-loader" style="
       position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
       background-color: #F5F5F7; z-index: 2147483647; 
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   ">
-      <style>
-          .nexus-splash-spinner {
-              width: 50px; height: 50px; position: relative;
-              animation: nexus-splash-spin 2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
-          }
-          .nexus-splash-ring {
-              position: absolute; width: 100%; height: 100%;
-              border-radius: 50%; border: 3px solid transparent; 
-              border-top-color: #0071E3; /* 苹果蓝主干 */
-          }
-          .nexus-splash-ring:nth-child(1) { 
-              animation: nexus-splash-orbit 1.5s cubic-bezier(0.42, 0, 0.58, 1) infinite; 
-              border-width: 4px; 
-          }
-          .nexus-splash-ring:nth-child(2) { 
-              animation: nexus-splash-orbit 2s cubic-bezier(0.42, 0, 0.58, 1) infinite reverse; 
-              border-right-color: #3B82F6; border-top-color: transparent;
-          }
-          @keyframes nexus-splash-spin { 
-              0% { transform: rotate(0deg); } 
-              100% { transform: rotate(360deg); } 
-          }
-          @keyframes nexus-splash-orbit { 
-              0% { transform: rotate(0deg) scale(0.8); opacity: 0.5; } 
-              50% { transform: rotate(180deg) scale(1.1); opacity: 1; } 
-              100% { transform: rotate(360deg) scale(0.8); opacity: 0.5; } 
-          }
-          .nexus-splash-text {
-              margin-top: 24px; font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-              font-size: 13px; font-weight: 600; color: #86868B; letter-spacing: 2px;
-              animation: nexus-splash-pulse 2s ease-in-out infinite;
-          }
-          @keyframes nexus-splash-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
-          
-          /* 卸甲之阵：触发 React 回收机制时的消散幽影状态 */
-          .nexus-loader-hide {
-              opacity: 0 !important;
-              transform: scale(1.05) !important;
-              pointer-events: none;
-          }
-      </style>
+        <style>
+            .nexus-splash-spinner {
+                width: 50px;
+                height: 50px;
+                position: relative;
+                animation: nexus-splash-spin 2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+            }
 
-      <div class="nexus-splash-spinner">
-          <div class="nexus-splash-ring"></div>
-          <div class="nexus-splash-ring"></div>
-      </div>
-      <div class="nexus-splash-text">NEXUS PLATFORM</div>
-  </div>
-  <!-- 🛡️ 盾牌结束 ============================================================= -->
+            .nexus-splash-ring {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                border: 3px solid transparent;
+                border-top-color: #0071E3;
+                /* 苹果蓝主干 */
+            }
 
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
+            .nexus-splash-ring:nth-child(1) {
+                animation: nexus-splash-orbit 1.5s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+                border-width: 4px;
+            }
+
+            .nexus-splash-ring:nth-child(2) {
+                animation: nexus-splash-orbit 2s cubic-bezier(0.42, 0, 0.58, 1) infinite reverse;
+                border-right-color: #3B82F6;
+                border-top-color: transparent;
+            }
+
+            @keyframes nexus-splash-spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+
+            @keyframes nexus-splash-orbit {
+                0% {
+                    transform: rotate(0deg) scale(0.8);
+                    opacity: 0.5;
+                }
+
+                50% {
+                    transform: rotate(180deg) scale(1.1);
+                    opacity: 1;
+                }
+
+                100% {
+                    transform: rotate(360deg) scale(0.8);
+                    opacity: 0.5;
+                }
+            }
+
+            .nexus-splash-text {
+                margin-top: 24px;
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                font-size: 13px;
+                font-weight: 600;
+                color: #86868B;
+                letter-spacing: 2px;
+                animation: nexus-splash-pulse 2s ease-in-out infinite;
+            }
+
+            @keyframes nexus-splash-pulse {
+
+                0%,
+                100% {
+                    opacity: 0.4;
+                }
+
+                50% {
+                    opacity: 1;
+                }
+            }
+
+            /* 卸甲之阵：触发 React 回收机制时的消散幽影状态 */
+            .nexus-loader-hide {
+                opacity: 0 !important;
+                transform: scale(1.05) !important;
+                pointer-events: none;
+            }
+        </style>
+
+        <div class="nexus-splash-spinner">
+            <div class="nexus-splash-ring"></div>
+            <div class="nexus-splash-ring"></div>
+        </div>
+        <div class="nexus-splash-text">NEXUS PLATFORM</div>
+    </div>
+    <!-- 🛡️ 盾牌结束 ============================================================= -->
+
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
 </body>
 
 </html>

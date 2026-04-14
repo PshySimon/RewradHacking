@@ -8,6 +8,8 @@ import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
 import ThreadZone from '../components/ThreadZone';
 import AuthModal from '../components/AuthModal';
+import { normalizeVditorMarkdown } from '../utils/vditorMarkdown';
+import { buildVditorRenderOptions } from '../utils/vditorOptions';
 
 // 骨架屏炫光占位层
 const ArticleSkeleton = () => (
@@ -92,11 +94,11 @@ export default function ArticleDetail() {
     // 等待 Article 在 DOM 中解包后再对核心正文区铺设高亮渲染
     useEffect(() => {
         if (article && !article.is_restricted) {
-            Vditor.preview(document.getElementById('mac-vditor-preview'), article.content, {
+            Vditor.preview(document.getElementById('mac-vditor-preview'), normalizeVditorMarkdown(article.content), buildVditorRenderOptions({
                 mode: 'light',
                 theme: { current: 'light' },
                 hljs: { style: 'github' }
-            }).then(() => {
+            })).then(() => {
                 setIsMainContentReady(true);
             }).catch(e => {
                 console.error("正文Vditor底层解析故障", e);
