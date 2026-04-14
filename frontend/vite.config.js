@@ -10,7 +10,7 @@ export default defineConfig({
     proxy: {
       // 捕获前端所有对 /api 的请求，无缝转发给刚构建好的 FastAPI
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:3001',
         changeOrigin: true,
       }
     }
