@@ -63,43 +63,63 @@ def fetch_external_image(
         raise HTTPException(status_code=400, detail="拦截失败，所提供的标的非网络 HTTP 寻参制式。")
 
     try:
-        # 防护伪装，防止各种极客安全图床（比如防盗链机制）的低级阻拦
-        req_obj = urllib.request.Request(
-            image_url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
-        )
+        import time
+        max_retries = 3
+        last_error = None
         
-        with urllib.request.urlopen(req_obj, timeout=8.0) as response:
-            content = response.read()
-            
-            # 使用原图格式截取；如果极度变态不带后缀的，我们就强制洗贴个 .jpg 狗皮膏药
-            ext = "jpg"
-            possible_ext = image_url.split(".")[-1].split("?")[0].lower()
-            if possible_ext in ["jpg", "jpeg", "png", "gif", "webp"]:
-                ext = possible_ext
-                    
-            safe_filename = f"{uuid.uuid4().hex}.{ext}"
-            file_path = os.path.join(UPLOAD_DIR, safe_filename)
-            
-            # 正式物理写入！存入和自主上传同一片绝对领域！
-            with open(file_path, "wb") as f:
-                f.write(content)
+        for attempt in range(max_retries):
+            try:
+                # 增强版防护伪装，模拟最真实的浏览器请求
+                req_obj = urllib.request.Request(
+                    image_url, 
+                    headers={
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                        'Referer': image_url # 有些图床使用自我引用破解防盗链
+                    }
+                )
                 
-            new_url = f"/api/static/images/{safe_filename}"
-            
-            # 严格遵照 Vditor 那套极度霸道且固化的要求返回洗白结果
-            return {
-                "msg": "走私原图本地洗白成功",
-                "code": 0,
-                "data": {
-                    "originalURL": image_url,
-                    "url": new_url
-                }
-            }
-            
+                with urllib.request.urlopen(req_obj, timeout=12.0) as response:
+                    content = response.read()
+                    
+                    if not content:
+                        raise ValueError("抓取到了一个空文件内容")
+                    
+                    # 使用原图格式截取；如果极度变态不带后缀的，我们就强制洗贴个 .jpg 狗皮膏药
+                    ext = "jpg"
+                    possible_ext = image_url.split("/")[-1].split(".")[-1].split("?")[0].lower()
+                    if possible_ext in ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"]:
+                        ext = possible_ext
+                            
+                    safe_filename = f"{uuid.uuid4().hex}.{ext}"
+                    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+                    
+                    # 正式物理写入！存入和自主上传同一片绝对领域！
+                    with open(file_path, "wb") as f:
+                        f.write(content)
+                        
+                    new_url = f"/api/static/images/{safe_filename}"
+                    
+                    # 严格遵照 Vditor 那套极度霸道且固化的要求返回洗白结果
+                    return {
+                        "msg": "走私原图本地洗白成功",
+                        "code": 0,
+                        "data": {
+                            "originalURL": image_url,
+                            "url": new_url
+                        }
+                    }
+            except Exception as loop_e:
+                last_error = loop_e
+                time.sleep(0.5) # 稍微喘口气再次重试，防止被对方 WAF 拦截
+                
+        # 如果重试 3 次依然全盘皆输
+        raise last_error
+
     except Exception as e:
         # 不能用 500 把人家弹死，返回 code 1 告知前端打平重来或者原样展示
-        print(f"走私外源图库被彻底粉碎反噬: {e}")
+        print(f"走私外源图库被彻底粉碎反噬 (重试3次后): {e}")
         return {
             "msg": f"抓取外哨资源失败: {str(e)}",
             "code": 1
