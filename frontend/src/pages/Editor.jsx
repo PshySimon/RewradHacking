@@ -7,6 +7,7 @@ import JellyCaret from '../components/JellyCaret';
 import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
 import { CodeLayout, InterviewLayout, KnowledgeLayout } from '../components/editor-templates';
+import { buildVditorEditorOptions } from '../utils/vditorOptions';
 
 export default function Editor() {
     const navigate = useNavigate();
@@ -205,9 +206,7 @@ export default function Editor() {
         // 延后 50ms 初始化，让 loading 动画先流畅播放几帧，避免 Vditor 同步阻塞冻住画面
         let vditor = null;
         const timerId = setTimeout(() => {
-            vditor = new Vditor('vditor-container', {
-                // [断网隔离锁] - 严防由于 Vditor 高亮、图标加载失败造成的全局假死崩溃
-                cdn: '/vendor/vditor',
+            vditor = new Vditor('vditor-container', buildVditorEditorOptions({
                 // 让卡片脱离固定限制，像一张真实的无限画轴一样随内容向下撑大
                 height: 'auto',
                 minHeight: window.innerHeight - 220, // 兜底最低高度
@@ -351,12 +350,12 @@ export default function Editor() {
                                     plainText = plainText.replace(/\$([\s\S]+?)\$/g, (match, inner) => {
                                         // 全局排除包裹了完整代码块的内容，避免 jQuery 代码被误伤
                                         if (inner.includes('```')) return match;
-                                        
+
                                         const hasMathSymbol = inner.includes('\\') || inner.includes('_') || inner.includes('^');
-                                        const hasBasicOp = inner.includes('=') || inner.includes('+') || inner.includes('-') || 
-                                                           inner.includes('*') || inner.includes('/') || inner.includes('<') || inner.includes('>');
+                                        const hasBasicOp = inner.includes('=') || inner.includes('+') || inner.includes('-') ||
+                                            inner.includes('*') || inner.includes('/') || inner.includes('<') || inner.includes('>');
                                         const isMath = hasMathSymbol || (inner.includes('\n') && hasBasicOp);
-                                        
+
                                         if (isMath) {
                                             if (inner.includes('\n')) {
                                                 return `$$\n${inner.trim()}\n$$`;
@@ -464,7 +463,7 @@ export default function Editor() {
                     setIsEditorReady(true);
                     setVditorObj(vditor);
                 }
-            });
+            }));
         }, 50); // setTimeout 闭合
 
         // 核心护法神技重启：延时封印外挂！
