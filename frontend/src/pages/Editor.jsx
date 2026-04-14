@@ -102,26 +102,26 @@ export default function Editor() {
     useEffect(() => {
         if (articleId) {
             axios.get(`/api/articles/${articleId}`)
-            .catch(err => {
-                // [穿透逻辑]：如果因为靶标屏蔽墙（代码类题库不允许走常规世界路由）报 404，直接使用暗网高速特供通道重拉一波
-                if (err.response && err.response.status === 404) {
-                    return axios.get(`/api/articles/code/${articleId}`);
-                }
-                throw err;
-            })
-            .then(res => {
-                const data = res.data;
-                document.title = `编修: ${data.title} - RewardHacking`;
-                setTitle(data.title);
-                setCategory(data.category);
-                if (data.tags) setTags(data.tags.split(',').filter(Boolean));
-                if (data.code_template) setCodeTemplate(data.code_template);
-                if (data.visibility) setVisibility(data.visibility);
-                setInitialContent(data.content);
-            }).catch(err => {
-                console.error("双通道加载旧文稿均失败或没有权限", err);
-                navigate('/');
-            });
+                .catch(err => {
+                    // [穿透逻辑]：如果因为靶标屏蔽墙（代码类题库不允许走常规世界路由）报 404，直接使用暗网高速特供通道重拉一波
+                    if (err.response && err.response.status === 404) {
+                        return axios.get(`/api/articles/code/${articleId}`);
+                    }
+                    throw err;
+                })
+                .then(res => {
+                    const data = res.data;
+                    document.title = `编修: ${data.title} - RewardHacking`;
+                    setTitle(data.title);
+                    setCategory(data.category);
+                    if (data.tags) setTags(data.tags.split(',').filter(Boolean));
+                    if (data.code_template) setCodeTemplate(data.code_template);
+                    if (data.visibility) setVisibility(data.visibility);
+                    setInitialContent(data.content);
+                }).catch(err => {
+                    console.error("双通道加载旧文稿均失败或没有权限", err);
+                    navigate('/');
+                });
         } else {
             document.title = '创作中心 - RewardHacking';
         }
@@ -292,6 +292,388 @@ export default function Editor() {
                             if (e.key === 'Backspace' || e.key === 'Delete') recoverVacuumState();
                         });
 
+                        // =============== [Typora 风格刚性 Block 两步退格删除] ===============
+                        // 表格、代码块等刚性 block 在 Vditor 中无法通过退格删除。
+                        // 模拟 Typora 行为：第一次退格选中 block，第二次退格删除。
+                        const getEditorReset = () => irContainer.querySelector('.vditor-reset');
+
+                        // 去除零宽空格等不可见字符后 trim（Vditor 常在空元素中插入 \u200b）
+                        const stripInvisible = (str) => str.replace(/[\u200b\u200c\u200d\ufeff]/g, '').trim();
+
+                        // 从任意子节点向上溯源，找到 .vditor-reset 的直接子元素（顶层 block）
+                        const findTopBlock = (node) => {
+                            const reset = getEditorReset();
+                            if (!reset || !node) return null;
+                            let cur = node.nodeType === 3 ? node.parentNode : node;
+                            while (cur && cur.parentNode !== reset) {
+                                cur = cur.parentNode;
+                            }
+                            return (cur && cur.parentNode === reset) ? cur : null;
+                        };
+
+                        // 判断一个顶层 block 是否是刚性 block（包含 table 或 pre）
+                        const isRigidBlock = (el) => {
+                            if (!el || el.nodeType !== 1) return false;
+                            const tag = el.tagName?.toLowerCase();
+                            if (tag === 'table' || tag === 'pre') return true;
+                            if (el.querySelector('table, pre')) return true;
+                            return false;
+                        };
+
+                        // 判断光标是否在元素的最开头（offset=0 且在第一个可编辑位置）
+                        const isCursorAtBlockStart = (sel, blockEl) => {
+                            if (sel.anchorOffset !== 0) return false;
+                            // 检查 anchorNode 是否在 block 的第一个可编辑叶子节点上
+                            const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, null);
+                            const firstTextNode = walker.nextNode();
+                            if (!firstTextNode) return true; // 空 block
+                            // anchorNode 就是第一个文本节点，或者是第一个文本节点的父元素
+                            const anchor = sel.anchorNode;
+                            if (anchor === firstTextNode) return true;
+                            if (anchor.nodeType === 1 && anchor.contains(firstTextNode)) return true;
+                            return false;
+                        };
+
+                        // 清除所有已选中状态
+                        const clearBlockSelection = () => {
+                            const reset = getEditorReset();
+                            if (!reset) return;
+                            reset.querySelectorAll('.rigid-block-selected').forEach(el => {
+                                el.classList.remove('rigid-block-selected');
+                            });
+                        };
+
+                        // 点击或输入其他键时取消选中
+                        irContainer.addEventListener('mousedown', () => clearBlockSelection());
+                        irContainer.addEventListener('keydown', (e) => {
+                            if (e.key !== 'Backspace') clearBlockSelection();
+                        });
+
+                        // keyup 门控：退格操作后必须松手再按才能继续（防止 keydown 连续触发导致连锁）
+                        let backspaceGate = false;
+                        irContainer.addEventListener('keyup', (e) => {
+                            if (e.key === 'Backspace') backspaceGate = false;
+                        });
+
+                        // 核心：退格拦截（capture 阶段，抢在 Vditor 之前）
+                        irContainer.addEventListener('keydown', (e) => {
+                            if (e.key !== 'Backspace') return;
+
+                            const reset = getEditorReset();
+                            if (!reset) return;
+                            const sel = window.getSelection();
+                            if (!sel.rangeCount) return;
+
+                            // Phase 2: 已有选中的 block → 删除它（但必须是松手后的新一次按键）
+                            const selectedBlock = reset.querySelector('.rigid-block-selected');
+                            if (selectedBlock) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                if (backspaceGate) return; // 同一次按键，只选中不删除
+                                const newP = document.createElement('p');
+                                newP.setAttribute('data-block', '0');
+                                newP.textContent = '\n';
+                                selectedBlock.replaceWith(newP);
+                                // 光标落入新段落
+                                const range = document.createRange();
+                                range.setStart(newP, 0);
+                                range.collapse(true);
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                                // 通知 Vditor 内容变化
+                                reset.dispatchEvent(new Event('input', { bubbles: true }));
+                                return;
+                            }
+
+                            // 门控检查：同一次按键只允许一次操作
+                            if (backspaceGate) {
+                                e.preventDefault();
+                                e.stopImmediatePropagation();
+                                return;
+                            }
+
+                            // ========== 表格内部退格导航（Typora 行为） ==========
+                            // 找到光标所在的 cell
+                            let cellNode = sel.anchorNode;
+                            if (cellNode.nodeType === 3) cellNode = cellNode.parentNode;
+                            while (cellNode && cellNode.tagName !== 'TD' && cellNode.tagName !== 'TH') {
+                                if (cellNode === reset) { cellNode = null; break; }
+                                cellNode = cellNode.parentNode;
+                            }
+                            if (cellNode && stripInvisible(cellNode.textContent) === '') {
+                                // 找到包含该 cell 的 table
+                                let tableEl = cellNode;
+                                while (tableEl && tableEl.tagName !== 'TABLE') tableEl = tableEl.parentNode;
+                                if (tableEl) {
+                                    const allCells = Array.from(tableEl.querySelectorAll('th, td'));
+                                    const cellIndex = allCells.indexOf(cellNode);
+
+                                    if (cellIndex === 0) {
+                                        // 第一行第一列：选中整个表格（两步机制，再按一次退格才删除）
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.stopImmediatePropagation();
+                                        tableEl.classList.add('rigid-block-selected');
+                                        backspaceGate = true;
+                                        return;
+                                    } else if (cellIndex > 0) {
+                                        // 其他 cell：跳到上一个 cell 的末尾
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        e.stopImmediatePropagation();
+                                        const prevCell = allCells[cellIndex - 1];
+                                        const range = document.createRange();
+                                        // 精确定位到最后一个文本节点的末尾
+                                        const tw = document.createTreeWalker(prevCell, NodeFilter.SHOW_TEXT, null);
+                                        let lastText = null, n;
+                                        while (n = tw.nextNode()) lastText = n;
+                                        if (lastText) {
+                                            range.setStart(lastText, lastText.textContent.length);
+                                            range.collapse(true);
+                                        } else {
+                                            range.selectNodeContents(prevCell);
+                                            range.collapse(false);
+                                        }
+                                        sel.removeAllRanges();
+                                        sel.addRange(range);
+                                        backspaceGate = true; // 防止 keydown 重复触发连跳
+                                        return;
+                                    }
+                                }
+                            }
+
+                            // Phase 1: 检测是否应该选中某个 block
+                            const topBlock = findTopBlock(sel.anchorNode);
+                            if (!topBlock) return;
+
+                            // 情况 A：光标在刚性 block 内部的最开头
+                            if (isRigidBlock(topBlock) && isCursorAtBlockStart(sel, topBlock)) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                topBlock.classList.add('rigid-block-selected');
+                                backspaceGate = true;
+                                return;
+                            }
+
+                            // 情况 B：光标所在块为空，前面是 rigid block → 选中它
+                            const prev = topBlock.previousElementSibling;
+                            if (stripInvisible(topBlock.textContent) === '' && prev && isRigidBlock(prev)) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                prev.classList.add('rigid-block-selected');
+                                backspaceGate = true;
+                                return;
+                            }
+
+                            // 检查光标是否在当前 block 的可见文本最前面
+                            const atBlockStart = (() => {
+                                try {
+                                    const testRange = document.createRange();
+                                    testRange.setStart(topBlock, 0);
+                                    testRange.setEnd(sel.anchorNode, sel.anchorOffset);
+                                    return stripInvisible(testRange.toString()) === '';
+                                } catch { return sel.anchorOffset === 0; }
+                            })();
+                            if (!atBlockStart) return; // 光标不在块首，正常退格
+
+                            // 情况 B2：光标在块首，前面是 rigid block → 选中它
+                            if (prev && isRigidBlock(prev)) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                prev.classList.add('rigid-block-selected');
+                                backspaceGate = true;
+                                return;
+                            }
+
+                            // 情况 C1：空块删除 — 适用于任何前置元素
+                            if (stripInvisible(topBlock.textContent) === '' && prev) {
+                                if (prev.tagName === 'P') {
+                                    // C1a: 前面也是段落 — 直接 DOM 操作安全
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.stopImmediatePropagation();
+                                    topBlock.remove();
+                                    const tw = document.createTreeWalker(prev, NodeFilter.SHOW_TEXT, null);
+                                    let lastText = null, nd;
+                                    while (nd = tw.nextNode()) lastText = nd;
+                                    const range = document.createRange();
+                                    if (lastText) {
+                                        range.setStart(lastText, lastText.textContent.length);
+                                    } else {
+                                        range.selectNodeContents(prev);
+                                        range.collapse(false);
+                                    }
+                                    range.collapse(true);
+                                    sel.removeAllRanges();
+                                    sel.addRange(range);
+                                    return;
+                                }
+                                // C1b: 前面是复杂元素（ul/ol/blockquote 等）— 清理零宽空格后交给 Vditor 原生处理
+                                const tw = document.createTreeWalker(topBlock, NodeFilter.SHOW_TEXT, null);
+                                let textNode;
+                                while (textNode = tw.nextNode()) {
+                                    textNode.textContent = textNode.textContent.replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+                                }
+                                // 光标放在空块开头，让默认退格正常工作
+                                const range = document.createRange();
+                                range.setStart(topBlock, 0);
+                                range.collapse(true);
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                                // 不 preventDefault — 让 Vditor 原生退格处理
+                                return;
+                            }
+
+                            // 情况 C2：有内容的段落合并 — 仅限两个 <p> 之间
+                            if (topBlock.tagName === 'P' && prev && prev.tagName === 'P') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+
+                                const tw = document.createTreeWalker(prev, NodeFilter.SHOW_TEXT, null);
+                                let lastTextOfPrev = null, nd;
+                                while (nd = tw.nextNode()) lastTextOfPrev = nd;
+                                const mergeOffset = lastTextOfPrev ? lastTextOfPrev.textContent.length : 0;
+
+                                const lastChild = prev.lastChild;
+                                if (lastChild && lastChild.nodeType === 1 &&
+                                    (lastChild.tagName === 'BR' || lastChild.tagName === 'WBR')) {
+                                    lastChild.remove();
+                                }
+                                while (topBlock.firstChild) {
+                                    prev.appendChild(topBlock.firstChild);
+                                }
+                                topBlock.remove();
+
+                                const range = document.createRange();
+                                if (lastTextOfPrev) {
+                                    range.setStart(lastTextOfPrev, mergeOffset);
+                                } else {
+                                    range.selectNodeContents(prev);
+                                    range.collapse(false);
+                                }
+                                range.collapse(true);
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                                requestAnimationFrame(() => {
+                                    reset.dispatchEvent(new Event('input', { bubbles: true }));
+                                });
+                                return;
+                            }
+                        }, true); // capture 阶段拦截
+
+                        // =============== [表格内右箭头跨 cell 导航] ===============
+                        irContainer.addEventListener('keydown', (e) => {
+                            if (e.key !== 'ArrowRight') return;
+                            const sel = window.getSelection();
+                            if (!sel.rangeCount || !sel.isCollapsed) return;
+
+                            const anchor = sel.anchorNode;
+                            // 找到光标所在的 cell
+                            let cell = anchor.nodeType === 3 ? anchor.parentNode : anchor;
+                            while (cell && cell.tagName !== 'TD' && cell.tagName !== 'TH') {
+                                if (cell.classList && cell.classList.contains('vditor-reset')) { cell = null; break; }
+                                cell = cell.parentNode;
+                            }
+                            if (!cell) return;
+
+                            // 用 Range 检查光标后面是否还有可见文本
+                            const testRange = document.createRange();
+                            testRange.setStart(sel.anchorNode, sel.anchorOffset);
+                            testRange.setEnd(cell, cell.childNodes.length);
+                            const remaining = testRange.toString();
+                            if (remaining.trim() !== '') return; // 后面还有内容，不跳
+
+                            // 找到下一个 cell
+                            let tableEl = cell;
+                            while (tableEl && tableEl.tagName !== 'TABLE') tableEl = tableEl.parentNode;
+                            if (!tableEl) return;
+                            const allCells = Array.from(tableEl.querySelectorAll('th, td'));
+                            const idx = allCells.indexOf(cell);
+                            if (idx < 0 || idx >= allCells.length - 1) return; // 最后一个 cell 不跳出
+
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            const nextCell = allCells[idx + 1];
+                            // 把光标放到下一个 cell 的最前面（可见文本之前）
+                            const range = document.createRange();
+                            range.selectNodeContents(nextCell);
+                            range.collapse(true); // collapse to start
+                            sel.removeAllRanges();
+                            sel.addRange(range);
+                        }, true);
+
+                        // =============== [表格内左箭头跨 cell 导航] ===============
+                        irContainer.addEventListener('keydown', (e) => {
+                            if (e.key !== 'ArrowLeft') return;
+                            const sel = window.getSelection();
+                            if (!sel.rangeCount || !sel.isCollapsed) return;
+                            const reset = getEditorReset();
+                            if (!reset) return;
+
+                            const anchor = sel.anchorNode;
+
+                            // 情况 1：光标在表格外（<p> 等块级元素的开头），前面紧邻 table
+                            const topBlock = findTopBlock(anchor);
+                            if (topBlock && topBlock.tagName !== 'TABLE') {
+                                // 检查光标是否在 block 的最前面
+                                const testRange = document.createRange();
+                                testRange.setStart(topBlock, 0);
+                                testRange.setEnd(sel.anchorNode, sel.anchorOffset);
+                                if (testRange.toString().trim() === '') {
+                                    const prevSibling = topBlock.previousElementSibling;
+                                    if (prevSibling && prevSibling.tagName === 'TABLE') {
+                                        // 跳到表格最后一个 cell 的末尾
+                                        const allCells = Array.from(prevSibling.querySelectorAll('th, td'));
+                                        const lastCell = allCells[allCells.length - 1];
+                                        if (lastCell) {
+                                            e.preventDefault();
+                                            e.stopImmediatePropagation();
+                                            const range = document.createRange();
+                                            range.selectNodeContents(lastCell);
+                                            range.collapse(false);
+                                            sel.removeAllRanges();
+                                            sel.addRange(range);
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 情况 2：光标在 cell 内部的开头，跳到上一个 cell
+                            let cell = anchor.nodeType === 3 ? anchor.parentNode : anchor;
+                            while (cell && cell.tagName !== 'TD' && cell.tagName !== 'TH') {
+                                if (cell.classList && cell.classList.contains('vditor-reset')) { cell = null; break; }
+                                cell = cell.parentNode;
+                            }
+                            if (!cell) return;
+
+                            const testRange2 = document.createRange();
+                            testRange2.setStart(cell, 0);
+                            testRange2.setEnd(sel.anchorNode, sel.anchorOffset);
+                            if (testRange2.toString().trim() !== '') return;
+
+                            let tableEl = cell;
+                            while (tableEl && tableEl.tagName !== 'TABLE') tableEl = tableEl.parentNode;
+                            if (!tableEl) return;
+                            const allCells = Array.from(tableEl.querySelectorAll('th, td'));
+                            const idx = allCells.indexOf(cell);
+                            if (idx <= 0) return;
+
+                            e.preventDefault();
+                            e.stopImmediatePropagation();
+                            const prevCell = allCells[idx - 1];
+                            const range = document.createRange();
+                            range.selectNodeContents(prevCell);
+                            range.collapse(false);
+                            sel.removeAllRanges();
+                            sel.addRange(range);
+                        }, true);
+
                         irContainer.addEventListener('paste', (e) => {
                             // 🚀 [终极防御：WebKit 原生段落切分（分裂）Bug]
                             // 当在一个含有 <br> 或 <wbr> 的空 <p> 里粘贴包含块级元素 (如 <p>) 的内容时，
@@ -315,7 +697,7 @@ export default function Editor() {
                             }
 
                             const html = e.clipboardData.getData('text/html');
-                            
+
                             // 鹰眼侦测：如果捕捉到类似知乎等带有隐藏 data-tex 的污染型公式 DOM 时（普通网页不触发）
                             if (html && html.includes('data-tex="')) {
                                 // 直接切断 Vditor 原本那糟糕透顶的防备，由我们全权接管这一次外科手术式的粘贴！
@@ -652,11 +1034,11 @@ export default function Editor() {
                     )}
 
                     {/* 实景大厅：通过透明度的压制，迫使其在后端引擎没有就位时完全噤声，并在启动瞬间联动左右屏共同淡雅降维出场！ */}
-                    <div style={{ 
-                        display: needsDualScreen ? 'flex' : 'block', 
-                        gap: '24px', 
+                    <div style={{
+                        display: needsDualScreen ? 'flex' : 'block',
+                        gap: '24px',
                         alignItems: 'stretch',
-                        opacity: isEditorReady ? 1 : 0, 
+                        opacity: isEditorReady ? 1 : 0,
                         transition: 'opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
                         pointerEvents: isEditorReady ? 'auto' : 'none'
                     }}>

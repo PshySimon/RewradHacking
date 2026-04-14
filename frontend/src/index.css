@@ -776,6 +776,22 @@ body {
     border-radius: 8px !important;
 }
 
+/* =============== Typora 风格刚性 Block 选中高亮 =============== */
+.rigid-block-selected {
+    outline: 2px solid #007AFF !important;
+    outline-offset: 2px !important;
+    background: rgba(0, 122, 255, 0.06) !important;
+    border-radius: 6px !important;
+    animation: rigid-block-pulse 1.2s ease-in-out infinite !important;
+    /* 禁用内部所有交互 transition 以防止视觉干扰 */
+    transition: none !important;
+}
+
+@keyframes rigid-block-pulse {
+    0%, 100% { outline-color: #007AFF; background: rgba(0, 122, 255, 0.06); }
+    50% { outline-color: #3395FF; background: rgba(0, 122, 255, 0.12); }
+}
+
 /* ✨ ==========================================
  * 苹果原生级阻尼弹跳进场与全局交互呼吸动画 
  * ========================================== */
