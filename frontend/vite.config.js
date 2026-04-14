@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // 监听所有网卡
     port: 3000,
+    allowedHosts: ['chat-director.me', 'localhost'], // 允许外放域名，解除跨域拦截
     proxy: {
       // 捕获前端所有对 /api 的请求，无缝转发给刚构建好的 FastAPI
       '/api': {
