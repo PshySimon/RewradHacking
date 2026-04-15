@@ -51,6 +51,16 @@ const countNonEmptyLines = (value) => value
     .filter(Boolean)
     .length;
 
+const trimMalformedBoldSpacingInLine = (line) => line
+    .replace(/(\*\*|__)\s+([^*\n](?:.*?[^*\n])?)\s+\1(?=\S)/g, '$1$2$1 ')
+    .replace(/(\*\*|__)\s+([^*\n](?:.*?[^*\n])?)\s+\1/g, '$1$2$1')
+    .replace(/((?:^|\s|[+*-]\s+)(?:\*\*|__)[^*\n]+(?:\*\*|__))(?=\S)/g, '$1 ');
+
+export const normalizePastedVditorMarkdown = (text = '') => text
+    .split('\n')
+    .map((line) => trimMalformedBoldSpacingInLine(line))
+    .join('\n');
+
 export const normalizeVditorMarkdown = (text = '') => {
     const lines = text.split('\n');
     const normalized = [];

@@ -7,7 +7,7 @@ import JellyCaret from '../components/JellyCaret';
 import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
 import { CodeLayout, InterviewLayout, KnowledgeLayout } from '../components/editor-templates';
-import { normalizeVditorMarkdown } from '../utils/vditorMarkdown';
+import { normalizePastedVditorMarkdown, normalizeVditorMarkdown } from '../utils/vditorMarkdown';
 import { buildVditorEditorOptions } from '../utils/vditorOptions';
 
 export default function Editor() {
@@ -408,6 +408,12 @@ export default function Editor() {
                                 const normalizedPlainText = normalizeVditorMarkdown(plainText);
                                 if (normalizedPlainText !== plainText) {
                                     plainText = normalizedPlainText;
+                                    injectPlainText = true;
+                                }
+
+                                const normalizedPastedPlainText = normalizePastedVditorMarkdown(plainText);
+                                if (normalizedPastedPlainText !== plainText) {
+                                    plainText = normalizedPastedPlainText;
                                     injectPlainText = true;
                                 }
 
