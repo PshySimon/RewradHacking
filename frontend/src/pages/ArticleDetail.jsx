@@ -8,7 +8,7 @@ import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
 import ThreadZone from '../components/ThreadZone';
 import AuthModal from '../components/AuthModal';
-import { normalizeVditorMarkdown } from '../utils/vditorMarkdown';
+import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
 import { buildVditorRenderOptions } from '../utils/vditorOptions';
 
 // 骨架屏炫光占位层
@@ -94,11 +94,27 @@ export default function ArticleDetail() {
     // 等待 Article 在 DOM 中解包后再对核心正文区铺设高亮渲染
     useEffect(() => {
         if (article && !article.is_restricted) {
-            Vditor.preview(document.getElementById('mac-vditor-preview'), normalizeVditorMarkdown(article.content), buildVditorRenderOptions({
+            const normalizedContent = normalizeVditorMarkdown(article.content);
+            if (shouldDebugVditorMath(article.content) || shouldDebugVditorMath(normalizedContent)) {
+                debugVditorMath('article-preview:before-render', {
+                    articleId: String(id),
+                    rawContent: article.content,
+                    normalizedContent,
+                });
+            }
+
+            Vditor.preview(document.getElementById('mac-vditor-preview'), normalizedContent, buildVditorRenderOptions({
                 mode: 'light',
                 theme: { current: 'light' },
                 hljs: { style: 'github' }
             })).then(() => {
+                const renderedElement = document.getElementById('mac-vditor-preview');
+                if (shouldDebugVditorMath(normalizedContent)) {
+                    debugVditorMath('article-preview:after-render', {
+                        articleId: String(id),
+                        renderedHtml: renderedElement?.innerHTML || '',
+                    });
+                }
                 setIsMainContentReady(true);
             }).catch(e => {
                 console.error("正文Vditor底层解析故障", e);

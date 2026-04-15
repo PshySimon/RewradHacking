@@ -12,7 +12,7 @@ import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { autocompletion } from '@codemirror/autocomplete';
 import { indentUnit } from '@codemirror/language';
 import { leetcodeCompletionSource } from '../utils/leetcodeCompletions';
-import { normalizeVditorMarkdown } from '../utils/vditorMarkdown';
+import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
 import { buildVditorEditorOptions, buildVditorRenderOptions } from '../utils/vditorOptions';
 
 const Vditor = window.Vditor;
@@ -220,10 +220,25 @@ export default function CodePlayground() {
             document.title = `${articleData.title} - RewardHacking`;
             setArticle(articleData);
             if (previewRef.current && window.Vditor) {
-                window.Vditor.preview(previewRef.current, normalizeVditorMarkdown(articleData.content), buildVditorRenderOptions({
+                const normalizedContent = normalizeVditorMarkdown(articleData.content);
+                if (shouldDebugVditorMath(articleData.content) || shouldDebugVditorMath(normalizedContent)) {
+                    debugVditorMath('code-description-preview:before-render', {
+                        articleId: String(id),
+                        rawContent: articleData.content,
+                        normalizedContent,
+                    });
+                }
+                Promise.resolve(window.Vditor.preview(previewRef.current, normalizedContent, buildVditorRenderOptions({
                     theme: { current: 'light' },
                     hljs: { style: 'github' } 
-                }));
+                }))).then(() => {
+                    if (shouldDebugVditorMath(normalizedContent)) {
+                        debugVditorMath('code-description-preview:after-render', {
+                            articleId: String(id),
+                            renderedHtml: previewRef.current?.innerHTML || '',
+                        });
+                    }
+                });
             }
             
             // 【终极裁决】：绝不由于闭包覆盖，草稿至上，模板保底。
@@ -309,10 +324,25 @@ export default function CodePlayground() {
         if (viewingSolution && Vditor) {
             const el = document.getElementById('solution-preview-container');
             if (el) {
-                Vditor.preview(el, normalizeVditorMarkdown(viewingSolution.content), buildVditorRenderOptions({
+                const normalizedContent = normalizeVditorMarkdown(viewingSolution.content);
+                if (shouldDebugVditorMath(viewingSolution.content) || shouldDebugVditorMath(normalizedContent)) {
+                    debugVditorMath('solution-preview:before-render', {
+                        solutionId: String(viewingSolution.id || ''),
+                        rawContent: viewingSolution.content,
+                        normalizedContent,
+                    });
+                }
+                Promise.resolve(Vditor.preview(el, normalizedContent, buildVditorRenderOptions({
                     theme: { current: 'light' },
                     hljs: { style: 'github' }
-                }));
+                }))).then(() => {
+                    if (shouldDebugVditorMath(normalizedContent)) {
+                        debugVditorMath('solution-preview:after-render', {
+                            solutionId: String(viewingSolution.id || ''),
+                            renderedHtml: el.innerHTML || '',
+                        });
+                    }
+                });
             }
         }
     }, [viewingSolution]);

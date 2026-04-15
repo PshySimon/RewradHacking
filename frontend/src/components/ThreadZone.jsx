@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { normalizeVditorMarkdown } from '../utils/vditorMarkdown';
+import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
 import { buildVditorEditorOptions, buildVditorRenderOptions } from '../utils/vditorOptions';
 const Vditor = window.Vditor;
 
@@ -9,9 +9,24 @@ const CommentPreview = ({ content }) => {
     const [html, setHtml] = React.useState('');
     React.useEffect(() => {
         if (content && window.Vditor) {
+            const normalizedContent = normalizeVditorMarkdown(content);
+            if (shouldDebugVditorMath(content) || shouldDebugVditorMath(normalizedContent)) {
+                debugVditorMath('comment-preview:before-render', {
+                    rawContent: content,
+                    normalizedContent,
+                });
+            }
             // md2html 通常返回 Promise 且需要基础 options 以定位依赖库，这里指向我们已经部署的 local cdn
-            Promise.resolve(window.Vditor.md2html(normalizeVditorMarkdown(content), buildVditorRenderOptions()))
-                .then(res => setHtml(res))
+            Promise.resolve(window.Vditor.md2html(normalizedContent, buildVditorRenderOptions()))
+                .then(res => {
+                    if (shouldDebugVditorMath(normalizedContent)) {
+                        debugVditorMath('comment-preview:after-render', {
+                            normalizedContent,
+                            renderedHtml: res,
+                        });
+                    }
+                    setHtml(res);
+                })
                 .catch(err => console.error("md2html failed:", err));
         }
     }, [content]);

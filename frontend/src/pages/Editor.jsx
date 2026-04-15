@@ -7,7 +7,7 @@ import JellyCaret from '../components/JellyCaret';
 import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
 import { CodeLayout, InterviewLayout, KnowledgeLayout } from '../components/editor-templates';
-import { normalizePastedVditorMarkdown, normalizeVditorMarkdown } from '../utils/vditorMarkdown';
+import { normalizePastedMathSegments, normalizePastedVditorMarkdown, normalizeVditorMarkdown } from '../utils/vditorMarkdown';
 import { buildVditorEditorOptions } from '../utils/vditorOptions';
 import { buildAlignToolbarItem, installAlignmentObserver, clearAlignments } from '../utils/vditorAlign';
 import { installBrokenImageHandler } from '../utils/vditorBrokenImg';
@@ -385,24 +385,7 @@ export default function Editor() {
                                 // 3. 修复外源复制的跨行或带有不规范空格的 LaTeX 公式（自动转接为 $$）
                                 if (plainText.includes('$')) {
                                     const oldPlain2 = plainText;
-                                    plainText = plainText.replace(/\$([\s\S]+?)\$/g, (match, inner) => {
-                                        // 全局排除包裹了完整代码块的内容，避免 jQuery 代码被误伤
-                                        if (inner.includes('```')) return match;
-
-                                        const hasMathSymbol = inner.includes('\\') || inner.includes('_') || inner.includes('^');
-                                        const hasBasicOp = inner.includes('=') || inner.includes('+') || inner.includes('-') ||
-                                            inner.includes('*') || inner.includes('/') || inner.includes('<') || inner.includes('>');
-                                        const isMath = hasMathSymbol || (inner.includes('\n') && hasBasicOp);
-
-                                        if (isMath) {
-                                            if (inner.includes('\n')) {
-                                                return `$$\n${inner.trim()}\n$$`;
-                                            } else {
-                                                return `$${inner.trim()}$`;
-                                            }
-                                        }
-                                        return match;
-                                    });
+                                    plainText = normalizePastedMathSegments(plainText);
                                     if (plainText !== oldPlain2) {
                                         injectPlainText = true;
                                     }

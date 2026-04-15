@@ -1,4 +1,5 @@
 import { observeVditorCallouts, transformVditorRenderedHtml } from './vditorCallouts.js';
+import { decorateResponsiveMath } from './vditorResponsiveMath.js';
 
 export const VDITOR_LOCAL_CDN = '/vendor/vditor';
 
@@ -12,7 +13,7 @@ const composeTransforms = (firstTransform, secondTransform) => {
     return (html) => secondTransform(firstTransform(html));
 };
 
-const scheduleCalloutDecoration = () => {
+const scheduleRenderedDecorations = () => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
         return;
     }
@@ -20,6 +21,7 @@ const scheduleCalloutDecoration = () => {
     console.debug('[VditorCalloutDebug] schedule-decoration');
     window.requestAnimationFrame(() => {
         observeVditorCallouts(document);
+        decorateResponsiveMath(document);
     });
 };
 
@@ -47,8 +49,8 @@ export const buildVditorEditorOptions = (options = {}) => {
     return {
         cdn: VDITOR_LOCAL_CDN,
         ...rest,
-        after: composeAfterCallbacks(after, scheduleCalloutDecoration),
-        input: composeInputCallbacks(input, scheduleCalloutDecoration),
+        after: composeAfterCallbacks(after, scheduleRenderedDecorations),
+        input: composeInputCallbacks(input, scheduleRenderedDecorations),
         preview: {
             ...preview,
             math: {
@@ -68,5 +70,5 @@ export const buildVditorRenderOptions = (options = {}) => ({
         ...(options.math || {}),
     },
     transform: composeTransforms(transformVditorRenderedHtml, options.transform),
-    after: composeAfterCallbacks(options.after, scheduleCalloutDecoration),
+    after: composeAfterCallbacks(options.after, scheduleRenderedDecorations),
 });

@@ -1,3 +1,5 @@
+import { transformAlignedBlockHtml } from './vditorAlign.js';
+
 const DEFAULT_CALLOUT_TITLES = {
     danger: 'Danger',
     info: 'Info',
@@ -110,7 +112,7 @@ export const transformVditorRenderedHtml = (html = '') => {
     for (let index = 0; index < tokens.length; index += 1) {
         const opener = getCalloutOpener(tokens[index]);
         if (!opener) {
-            transformed.push(tokens[index].raw);
+            transformed.push(transformAlignedBlockHtml(tokens[index].raw));
             continue;
         }
 

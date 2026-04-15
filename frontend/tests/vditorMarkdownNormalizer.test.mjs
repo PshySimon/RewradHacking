@@ -73,6 +73,28 @@ $$`;
     assert.equal(normalized, String.raw`$ PE(t) \cdot PE(t + k) =\sum_{i=0}^{d/2-1} x_i $`);
 });
 
+test('normalizeVditorMarkdown repairs broken inline math closed by punctuation after zero-width lines', async () => {
+    const { normalizeVditorMarkdown } = await import(moduleUrl);
+    const sample = '其中i表示第i个token，m为坡度，也就是惩罚系数，第n个头对应的坡度为$ m=2^{\\frac{-8}{n}}\n\u200B\n $。';
+
+    const normalized = normalizeVditorMarkdown(sample);
+
+    assert.equal(normalized, '其中i表示第i个token，m为坡度，也就是惩罚系数，第n个头对应的坡度为$ m=2^{\\frac{-8}{n}} $。');
+    assert.doesNotMatch(normalized, /\u200B/);
+    assert.doesNotMatch(normalized, /\n \$。\n?/);
+});
+
+test('normalizePastedMathSegments keeps single-line sentence math inline even when copied across lines', async () => {
+    const { normalizePastedMathSegments } = await import(moduleUrl);
+    const sample = '其中i表示第i个token，m为坡度，也就是惩罚系数，第n个头对应的坡度为$ m=2^{\\frac{-8}{n}}\n\u200B\n $。';
+
+    const normalized = normalizePastedMathSegments(sample);
+
+    assert.equal(normalized, '其中i表示第i个token，m为坡度，也就是惩罚系数，第n个头对应的坡度为$ m=2^{\\frac{-8}{n}} $。');
+    assert.doesNotMatch(normalized, /\$\$\n/);
+    assert.doesNotMatch(normalized, /\u200B/);
+});
+
 test('normalizePastedVditorMarkdown trims spaces inside bold markers and separates following body text', async () => {
     const { normalizePastedVditorMarkdown } = await import(moduleUrl);
     const sample = String.raw`+ ** Probing tasks： **一般做法是设计一些简单的分类任务`;
