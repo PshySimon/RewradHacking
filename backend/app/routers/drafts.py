@@ -6,6 +6,8 @@ from ..database import get_db
 from ..models import Draft, User, CategoryEnum, get_current_time
 from ..schemas import DraftCreate, DraftOut
 from ..auth import get_current_user
+from ..image_assets import clear_image_references, sync_image_references
+from .upload import UPLOAD_DIR
 
 router = APIRouter(prefix="/api/drafts", tags=["Drafts"])
 
@@ -53,6 +55,14 @@ def create_or_upsert_draft(
             existing.updated_at = get_current_time()
             db.commit()
             db.refresh(existing)
+            sync_image_references(
+                db,
+                owner_type="draft",
+                owner_id=existing.id,
+                field="content",
+                content=existing.content,
+                upload_dir=UPLOAD_DIR,
+            )
             return existing
             
         # 若是该题处女作则跳过多重建立检验直接落定
@@ -60,6 +70,14 @@ def create_or_upsert_draft(
         db.add(new_draft)
         db.commit()
         db.refresh(new_draft)
+        sync_image_references(
+            db,
+            owner_type="draft",
+            owner_id=new_draft.id,
+            field="content",
+            content=new_draft.content,
+            upload_dir=UPLOAD_DIR,
+        )
         return new_draft
 
     # 【常规弹夹上限审核机制】：知识/面经/题解 只能存 5 份（且必须是不带 target_id 独立存储的正经草稿）
@@ -76,6 +94,14 @@ def create_or_upsert_draft(
     db.add(new_draft)
     db.commit()
     db.refresh(new_draft)
+    sync_image_references(
+        db,
+        owner_type="draft",
+        owner_id=new_draft.id,
+        field="content",
+        content=new_draft.content,
+        upload_dir=UPLOAD_DIR,
+    )
     return new_draft
 
 
@@ -98,6 +124,14 @@ def update_draft(
     draft.updated_at = get_current_time()
     db.commit()
     db.refresh(draft)
+    sync_image_references(
+        db,
+        owner_type="draft",
+        owner_id=draft.id,
+        field="content",
+        content=draft.content,
+        upload_dir=UPLOAD_DIR,
+    )
     return draft
 
 
@@ -110,6 +144,7 @@ def delete_draft(
     draft = db.query(Draft).filter(Draft.id == draft_id, Draft.user_id == current_user.id).first()
     if not draft:
         raise HTTPException(status_code=404, detail="此草稿记录不存在")
+    clear_image_references(db, owner_type="draft", owner_id=draft.id, upload_dir=UPLOAD_DIR)
     db.delete(draft)
     db.commit()
     return {"status": "success"}

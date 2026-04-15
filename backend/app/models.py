@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, Text, Enum, ForeignKey
+from sqlalchemy import Boolean, Column, Integer, String, Text, Enum, ForeignKey, UniqueConstraint
 import enum
 import secrets
 from datetime import datetime
@@ -94,3 +94,28 @@ class Draft(Base):
     tags = Column(String, default="")
     created_at = Column(String, default=get_current_time)
     updated_at = Column(String, default=get_current_time)
+
+class ImageAsset(Base):
+    __tablename__ = "image_assets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    hash = Column(String(64), index=True, nullable=False)
+    filename = Column(String, unique=True, index=True, nullable=False)
+    url = Column(String, unique=True, nullable=False)
+    mime = Column(String, nullable=False)
+    size = Column(Integer, nullable=False)
+    uploader_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(String, default=get_current_time)
+
+class ImageReference(Base):
+    __tablename__ = "image_references"
+    __table_args__ = (
+        UniqueConstraint("image_id", "owner_type", "owner_id", "field", name="uq_image_reference_owner"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    image_id = Column(Integer, ForeignKey("image_assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_type = Column(String, nullable=False, index=True)
+    owner_id = Column(String(32), nullable=False, index=True)
+    field = Column(String, default="content", nullable=False)
+    created_at = Column(String, default=get_current_time)

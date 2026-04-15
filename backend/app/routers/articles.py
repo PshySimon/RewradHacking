@@ -4,6 +4,8 @@ from typing import List, Any
 import os
 
 from .. import schemas, database, models, auth
+from ..image_assets import clear_image_references, sync_image_references
+from .upload import UPLOAD_DIR
 
 router = APIRouter(prefix="/api/articles", tags=["Articles"])
 
@@ -119,6 +121,14 @@ def create_code_solution(
     new_mapping = models.SolutionMapping(question_id=article_id, solution_id=new_article.id)
     db.add(new_mapping)
     db.commit()
+    sync_image_references(
+        db,
+        owner_type="article",
+        owner_id=new_article.id,
+        field="content",
+        content=new_article.content,
+        upload_dir=UPLOAD_DIR,
+    )
     
     return new_article
 
@@ -136,6 +146,14 @@ def create_article(
     db.add(new_article)
     db.commit()
     db.refresh(new_article)
+    sync_image_references(
+        db,
+        owner_type="article",
+        owner_id=new_article.id,
+        field="content",
+        content=new_article.content,
+        upload_dir=UPLOAD_DIR,
+    )
     return new_article
 
 @router.put("/{article_id}", response_model=schemas.ArticleOut)
@@ -159,6 +177,14 @@ def update_article(
     
     db.commit()
     db.refresh(article)
+    sync_image_references(
+        db,
+        owner_type="article",
+        owner_id=article.id,
+        field="content",
+        content=article.content,
+        upload_dir=UPLOAD_DIR,
+    )
     return article
 
 @router.delete("/{article_id}")
@@ -176,6 +202,13 @@ def delete_article(
     if article.author_id != current_user.id and current_user.role != models.RoleEnum.admin:
         raise HTTPException(status_code=403, detail="非法越权销毁：你不是该文章的拥有者，亦无大盘总控权限。")
     
+    comments = db.query(models.Comment).filter(models.Comment.article_id == article.id).all()
+    for comment in comments:
+        clear_image_references(db, owner_type="comment", owner_id=comment.id, upload_dir=UPLOAD_DIR)
+        db.query(models.CommentLike).filter(models.CommentLike.comment_id == comment.id).delete(synchronize_session=False)
+        db.delete(comment)
+
+    clear_image_references(db, owner_type="article", owner_id=article.id, upload_dir=UPLOAD_DIR)
     db.delete(article)
     db.commit()
     return {"status": "SUCCESS", "detail": "材料已被永久断链销毁。"}
@@ -241,6 +274,14 @@ def create_comment(
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
+    sync_image_references(
+        db,
+        owner_type="comment",
+        owner_id=new_comment.id,
+        field="content",
+        content=new_comment.content,
+        upload_dir=UPLOAD_DIR,
+    )
     
     res = schemas.CommentOut.model_validate(new_comment)
     res.author_username = current_user.username

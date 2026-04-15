@@ -11,6 +11,8 @@ env/
 *.sqlite3
 *.db-shm
 *.db-wal
+backend/data/uploads/*
+!backend/data/uploads/.gitkeep
 
 # Node / Frontend
 node_modules/

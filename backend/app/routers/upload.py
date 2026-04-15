@@ -1,6 +1,4 @@
 import os
-import uuid
-import shutil
 import urllib.request
 import urllib.error
 from pydantic import BaseModel
@@ -8,6 +6,9 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from typing import Any
 
 from .. import auth, models
+from ..database import get_db
+from ..image_assets import store_image_bytes
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/upload", tags=["Upload"])
 
@@ -21,6 +22,7 @@ if not os.path.exists(UPLOAD_DIR):
 @router.post("/image")
 def upload_image(
     file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ) -> Any:
     """
@@ -31,19 +33,21 @@ def upload_image(
     if file.content_type not in ["image/jpeg", "image/png", "image/gif", "image/webp"]:
         raise HTTPException(status_code=400, detail="检测到非静态图档的潜入尝试！")
     
-    # 获取散列名称，防止跨系统重名覆盖
-    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-    safe_filename = f"{uuid.uuid4().hex}.{ext}"
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
-    
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        content = file.file.read()
+        asset = store_image_bytes(
+            db,
+            upload_dir=UPLOAD_DIR,
+            content=content,
+            original_filename=file.filename,
+            content_type=file.content_type,
+            uploader_id=current_user.id,
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail="托管舱数据封入失败。")
         
     # 我们将在主线中暴露 /static/images/... 代理到这里
-    return {"url": f"/api/static/images/{safe_filename}", "message": "图床资源绑定就绪。"}
+    return {"url": asset.url, "filename": asset.filename, "message": "图床资源绑定就绪。"}
 
 
 class LinkFetchReq(BaseModel):
@@ -52,6 +56,7 @@ class LinkFetchReq(BaseModel):
 @router.post("/fetch_image")
 def fetch_external_image(
     req: LinkFetchReq,
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ) -> Any:
     """
@@ -90,20 +95,15 @@ def fetch_external_image(
                     if not content:
                         raise ValueError("抓取到了一个空文件内容")
                     
-                    # 使用原图格式截取；如果极度变态不带后缀的，我们就强制洗贴个 .jpg 狗皮膏药
-                    ext = "jpg"
-                    possible_ext = image_url.split("/")[-1].split(".")[-1].split("?")[0].lower()
-                    if possible_ext in ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"]:
-                        ext = possible_ext
-                            
-                    safe_filename = f"{uuid.uuid4().hex}.{ext}"
-                    file_path = os.path.join(UPLOAD_DIR, safe_filename)
-                    
-                    # 正式物理写入！存入和自主上传同一片绝对领域！
-                    with open(file_path, "wb") as f:
-                        f.write(content)
-                        
-                    new_url = f"/api/static/images/{safe_filename}"
+                    asset = store_image_bytes(
+                        db,
+                        upload_dir=UPLOAD_DIR,
+                        content=content,
+                        original_filename=image_url.split("/")[-1].split("?")[0],
+                        content_type=response.headers.get_content_type(),
+                        uploader_id=current_user.id,
+                    )
+                    new_url = asset.url
                     
                     # 严格遵照 Vditor 那套极度霸道且固化的要求返回洗白结果
                     return {
