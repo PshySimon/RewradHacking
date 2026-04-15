@@ -1,8 +1,8 @@
 const EMPTY_FORMATTED_HTML_PATTERN = /(\*\*|__)\s*<([a-zA-Z][\w-]*)\b[^>]*>\s*<\/\2>\s*\1/g;
-const ORPHAN_BOLD_MARKER_PATTERN = /(^|[\s\u3002\uff0c\uff1a:;,.!?！？])(\*\*\*\*|____)(?=(<|[\u4E00-\u9FFFA-Za-z0-9]))/gu;
+const ORPHAN_BOLD_MARKER_PATTERN = /(^|(?:\s|。|，|：|:|;|,|\.|!|\?|！|？))(\*\*\*\*|____)(?=(<|[A-Za-z0-9]|\p{Script=Han}))/gu;
+const FONT_TAG_PATTERN = /<\/?font\b[^>]*>/gi;
 const CALLOUT_OPEN_PATTERN = /^:::(danger|info|note|tip|warning)(?:\s+.*)?$/i;
 const CALLOUT_CLOSE_PATTERN = /^:::\s*$/i;
-const ZERO_WIDTH_CHARACTER_PATTERN = /[\u200B\u200C\u200D\uFEFF]/g;
 const BROKEN_MATH_BLOCK_END_PATTERN = /^\\?\s*\$(?<suffix>[,.;:!?。，；：！？、）)\]】》」』]*)$/u;
 const VDITOR_MATH_DEBUG_PREFIX = '[VditorMathDebug]';
 
@@ -21,7 +21,13 @@ const stripOrphanBoldMarkers = (line) => line.replace(
     (_, prefix) => prefix,
 );
 
-const stripZeroWidthCharacters = (value = '') => value.replace(ZERO_WIDTH_CHARACTER_PATTERN, '');
+const stripFontTags = (line = '') => line.replace(FONT_TAG_PATTERN, '');
+
+const stripZeroWidthCharacters = (value = '') => value
+    .replace(/\u200B/g, '')
+    .replace(/\u200C/g, '')
+    .replace(/\u200D/g, '')
+    .replace(/\uFEFF/g, '');
 const revealInvisibleCharacters = (value = '') => value
     .replace(/\u200B/g, '<ZWSP>')
     .replace(/\u200C/g, '<ZWNJ>')
@@ -37,7 +43,10 @@ const toDebugSnippet = (value) => {
     return visibleValue.length > 500 ? `${visibleValue.slice(0, 500)}...[truncated]` : visibleValue;
 };
 
-const hasZeroWidthCharacters = (value = '') => /[\u200B\u200C\u200D\uFEFF]/u.test(value);
+const hasZeroWidthCharacters = (value = '') => value.includes('\u200B')
+    || value.includes('\u200C')
+    || value.includes('\u200D')
+    || value.includes('\uFEFF');
 
 const shouldForceMathDebug = () => {
     try {
@@ -153,6 +162,73 @@ const countNonEmptyLines = (value) => value
     .filter(Boolean)
     .length;
 
+const isInlineBoundaryCharacter = (value = '') => value === ''
+    || /\s/u.test(value)
+    || /[。，“”‘’：；、，:;,.!?！？（）()[\]{}<>《》「」『』]/u.test(value);
+
+const isInlineBodyStartCharacter = (value = '') => /[\p{Script=Han}A-Za-z0-9]/u.test(value);
+
+const shouldInsertStrongSeparator = (delimiter, content = '', nextChar = '') => {
+    if (!isInlineBodyStartCharacter(nextChar)) {
+        return false;
+    }
+
+    if (delimiter === '__') {
+        return true;
+    }
+
+    const hasWhitespace = /\s/u.test(content);
+    const hasAsciiLetter = /[A-Za-z]/.test(content);
+    const hasHan = /\p{Script=Han}/u.test(content);
+
+    return hasWhitespace || (hasAsciiLetter && hasHan);
+};
+
+const normalizeInlineStrongProseSpacing = (line = '') => {
+    if (!line.includes('**') && !line.includes('__')) {
+        return line;
+    }
+
+    let normalized = '';
+    let index = 0;
+
+    while (index < line.length) {
+        const delimiter = line.slice(index, index + 2);
+        if (delimiter !== '**' && delimiter !== '__') {
+            normalized += line[index];
+            index += 1;
+            continue;
+        }
+
+        const previousChar = index === 0 ? '' : line[index - 1];
+        if (!isInlineBoundaryCharacter(previousChar)) {
+            normalized += delimiter;
+            index += 2;
+            continue;
+        }
+
+        const closingIndex = line.indexOf(delimiter, index + 2);
+        if (closingIndex === -1) {
+            normalized += delimiter;
+            index += 2;
+            continue;
+        }
+
+        const content = line.slice(index + 2, closingIndex);
+        const raw = line.slice(index, closingIndex + 2);
+        const nextChar = line[closingIndex + 2] || '';
+
+        normalized += raw;
+        if (shouldInsertStrongSeparator(delimiter, content, nextChar)) {
+            normalized += ' ';
+        }
+
+        index = closingIndex + 2;
+    }
+
+    return normalized;
+};
+
 const trimMalformedBoldSpacingInLine = (line) => line
     .replace(/^(\s*(?:[-+*]|\d+\.)?\s*)(\*\*|__)\s+([^*\n](?:.*?[^*\n])?)\s+\2(?=\S)/, '$1$2$3$2 ')
     .replace(/^(\s*(?:[-+*]|\d+\.)?\s*)(\*\*|__)\s+([^*\n](?:.*?[^*\n])?)\s+\2/, '$1$2$3$2')
@@ -188,10 +264,25 @@ const normalizeCalloutBlocks = (text = '') => {
 };
 
 export const normalizePastedVditorMarkdown = (text = '') => normalizeCalloutBlocks(
-    text
-        .split('\n')
-        .map((line) => trimMalformedBoldSpacingInLine(line))
-        .join('\n'),
+    (() => {
+        const lines = text.split('\n');
+        const normalized = [];
+        let inFence = false;
+
+        for (const originalLine of lines) {
+            const line = inFence
+                ? originalLine
+                : normalizeInlineStrongProseSpacing(stripFontTags(trimMalformedBoldSpacingInLine(originalLine)));
+
+            if (isFenceMarker(line)) {
+                inFence = !inFence;
+            }
+
+            normalized.push(line);
+        }
+
+        return normalized.join('\n');
+    })(),
 );
 
 export const normalizePastedMathSegments = (text = '') => {
@@ -246,7 +337,10 @@ export const normalizeVditorMarkdown = (text = '') => {
     let inFence = false;
 
     for (let i = 0; i < lines.length; i += 1) {
-        const line = stripOrphanBoldMarkers(stripEmptyFormattedHtml(lines[i]));
+        const currentLine = lines[i];
+        const line = inFence
+            ? currentLine
+            : stripFontTags(stripOrphanBoldMarkers(stripEmptyFormattedHtml(currentLine)));
 
         if (isFenceMarker(line)) {
             inFence = !inFence;

@@ -13,6 +13,8 @@ import { buildVditorEditorOptions } from '../utils/vditorOptions';
 import { buildAlignToolbarItem, installAlignmentObserver, clearAlignments } from '../utils/vditorAlign';
 import { installBrokenImageHandler } from '../utils/vditorBrokenImg';
 import { localizeExternalImagesInVditor } from '../utils/vditorImageLocalization';
+import { describeFenceMarkers, describeMarkdownStrongMarkers, describeNeedleContexts, toVisibleSnippet } from '../utils/vditorPasteDebug';
+import { insertPastedPlainText } from '../utils/vditorPasteInsert';
 
 export default function Editor() {
     const navigate = useNavigate();
@@ -277,15 +279,87 @@ export default function Editor() {
                     // 知乎特供图文混排会导致公式彻底炸裂和无端换行，咱们直接在它触碰 Vditor 核心前进行拦截。
                     const irContainer = document.querySelector('.vditor-ir');
                     if (irContainer) {
-                        const toDebugSnippet = (value) => {
-                            if (typeof value !== 'string') return value;
-                            return value.length > 600 ? `${value.slice(0, 600)}...[truncated]` : value;
-                        };
-
                         const debugPasteState = (stage, payload = {}) => {
                             console.debug(`[VditorPasteDebug] ${stage}`, Object.fromEntries(
-                                Object.entries(payload).map(([key, value]) => [key, toDebugSnippet(value)]),
+                                Object.entries(payload).map(([key, value]) => [key, toVisibleSnippet(value, 600)]),
                             ));
+                        };
+
+                        const debugPasteJson = (stage, payload) => {
+                            try {
+                                console.debug(`[VditorPasteDebugJSON] ${stage} ${JSON.stringify(payload)}`);
+                            } catch (error) {
+                                console.debug(`[VditorPasteDebugJSON] ${stage} <unserializable>`, error);
+                            }
+                        };
+
+                        const summarizeStrongMarkers = (value = '') => describeMarkdownStrongMarkers(value).map((marker) => ({
+                            raw: toVisibleSnippet(marker.raw, 120),
+                            content: marker.visibleContent,
+                            hasLeadingInnerSpace: marker.hasLeadingInnerSpace,
+                            hasTrailingInnerSpace: marker.hasTrailingInnerSpace,
+                            hasInvisibleCharacters: marker.hasInvisibleCharacters,
+                            previousChar: marker.previousChar,
+                            nextChar: marker.nextChar,
+                            context: marker.context,
+                        }));
+
+                        const collectObservedTerms = (value = '') => {
+                            const uniqueTerms = new Set();
+
+                            describeMarkdownStrongMarkers(value).forEach((marker) => {
+                                const normalizedTerm = marker.content.trim();
+                                if (normalizedTerm) {
+                                    uniqueTerms.add(normalizedTerm);
+                                }
+                            });
+
+                            return Array.from(uniqueTerms).slice(0, 8);
+                        };
+
+                        const summarizeFenceMarkers = (value = '') => describeFenceMarkers(value).map((fence) => ({
+                            raw: toVisibleSnippet(fence.raw, 120),
+                            line: fence.line,
+                            info: fence.info,
+                            previousLine: toVisibleSnippet(fence.previousLine, 120),
+                            nextLine: toVisibleSnippet(fence.nextLine, 120),
+                            context: fence.context,
+                        }));
+
+                        const summarizeRenderedStrongNodes = (root) => {
+                            if (!root?.querySelectorAll) {
+                                return [];
+                            }
+
+                            return Array.from(root.querySelectorAll('[data-type="strong"]')).slice(0, 8).map((node) => ({
+                                text: toVisibleSnippet(node.textContent || '', 120),
+                                html: toVisibleSnippet(node.outerHTML || '', 160),
+                            }));
+                        };
+
+                        const debugRenderedStrongState = (stage, root, sourceMarkdown = '') => {
+                            const observedTerms = collectObservedTerms(sourceMarkdown);
+                            const innerHTML = root?.innerHTML || '';
+                            const renderedStrongNodes = summarizeRenderedStrongNodes(root);
+                            const markdownStrongMarkers = summarizeStrongMarkers(sourceMarkdown);
+                            const domNeedleContexts = describeNeedleContexts(innerHTML, observedTerms);
+                            const markdownFenceMarkers = summarizeFenceMarkers(sourceMarkdown);
+
+                            debugPasteState(`${stage}:strong-analysis`, {
+                                observedTerms,
+                                markdownStrongMarkers,
+                                markdownFenceMarkers,
+                                renderedStrongNodes,
+                                domNeedleContexts,
+                            });
+                            debugPasteJson(`${stage}:strong-analysis`, {
+                                observedTerms,
+                                markdownStrongMarkers,
+                                markdownFenceMarkers,
+                                renderedStrongNodes,
+                                domNeedleContexts,
+                                domSnippet: toVisibleSnippet(innerHTML, 1200),
+                            });
                         };
 
                         const fetchAndLocalizeImage = async (url) => {
@@ -326,18 +400,24 @@ export default function Editor() {
                                 if (!vditor) return;
                                 const currentValue = vditor.getValue();
                                 const normalizedValue = normalizeVditorMarkdown(currentValue);
+                                const editorReset = irContainer.querySelector('.vditor-reset');
                                 debugPasteState(`${reason}:editor-frame`, {
                                     currentValue,
                                     normalizedValue,
                                 });
+                                debugRenderedStrongState(`${reason}:before-normalize`, editorReset, currentValue);
                                 if (normalizedValue !== currentValue) {
                                     vditor.setValue(normalizedValue);
                                     requestAnimationFrame(() => {
                                         if (!vditor) return;
+                                        const refreshedEditorReset = irContainer.querySelector('.vditor-reset');
                                         debugPasteState(`${reason}:after-setValue`, {
                                             finalValue: vditor.getValue(),
                                         });
+                                        debugRenderedStrongState(`${reason}:after-setValue`, refreshedEditorReset, vditor.getValue());
                                     });
+                                } else {
+                                    debugRenderedStrongState(`${reason}:after-noop`, editorReset, currentValue);
                                 }
                                 scheduleImageLocalization();
                             });
@@ -395,6 +475,19 @@ export default function Editor() {
                             const html = e.clipboardData.getData('text/html');
                             let plainText = e.clipboardData.getData('text/plain');
                             debugPasteState('clipboard:raw', { plainText, html });
+                            const rawStrongMarkers = summarizeStrongMarkers(plainText);
+                            const rawStrongTerms = collectObservedTerms(plainText);
+                            const rawFenceMarkers = summarizeFenceMarkers(plainText);
+                            debugPasteState('clipboard:raw-strong-analysis', {
+                                plainTextStrongMarkers: rawStrongMarkers,
+                                plainTextStrongTerms: rawStrongTerms,
+                                plainTextFenceMarkers: rawFenceMarkers,
+                            });
+                            debugPasteJson('clipboard:raw-strong-analysis', {
+                                plainTextStrongMarkers: rawStrongMarkers,
+                                plainTextStrongTerms: rawStrongTerms,
+                                plainTextFenceMarkers: rawFenceMarkers,
+                            });
 
                             let isInsideCode = false;
                             if (sel.rangeCount > 0 && sel.anchorNode) {
@@ -445,13 +538,26 @@ export default function Editor() {
                                     injectPlainText,
                                     plainText,
                                 });
+                                const normalizedStrongMarkers = summarizeStrongMarkers(plainText);
+                                const normalizedStrongTerms = collectObservedTerms(plainText);
+                                const normalizedFenceMarkers = summarizeFenceMarkers(plainText);
+                                debugPasteState('clipboard:normalized-strong-analysis', {
+                                    plainTextStrongMarkers: normalizedStrongMarkers,
+                                    plainTextStrongTerms: normalizedStrongTerms,
+                                    plainTextFenceMarkers: normalizedFenceMarkers,
+                                });
+                                debugPasteJson('clipboard:normalized-strong-analysis', {
+                                    plainTextStrongMarkers: normalizedStrongMarkers,
+                                    plainTextStrongTerms: normalizedStrongTerms,
+                                    plainTextFenceMarkers: normalizedFenceMarkers,
+                                });
 
                                 if (injectPlainText) {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     if (vditor) {
-                                        vditor.insertValue(plainText);
-                                        debugPasteState('insertValue:plainText', { plainText });
+                                        insertPastedPlainText(vditor, plainText);
+                                        debugPasteState('insertMarkdown:plainText', { plainText });
                                     }
                                     normalizeEditorContent('plainText-branch');
                                     return;

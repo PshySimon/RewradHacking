@@ -148,6 +148,39 @@ I **do** like the story of the movie, but I **do not** like the cast.
 :::`);
 });
 
+test('normalizePastedVditorMarkdown inserts a space after inline bold markers in prose when body text follows immediately', async () => {
+    const { normalizePastedVditorMarkdown } = await import(moduleUrl);
+    const sample = '与RNN不同的是引入了position embedding（Bert甚至还引入了token_type_emebdding，这是个定制化的embedding，主要用于区分不同的句子段落），**为什么需要position embedding？**对于RNN模型来说。';
+
+    const normalized = normalizePastedVditorMarkdown(sample);
+
+    assert.equal(
+        normalized,
+        '与RNN不同的是引入了position embedding（Bert甚至还引入了token_type_emebdding，这是个定制化的embedding，主要用于区分不同的句子段落），**为什么需要position embedding？** 对于RNN模型来说。',
+    );
+});
+
+test('normalizePastedVditorMarkdown inserts a space after inline underscore markers in prose when body text follows immediately', async () => {
+    const { normalizePastedVditorMarkdown } = await import(moduleUrl);
+    const sample = '这里顺手记一下，__why positional embedding matters?__对于Transformer来说也很关键。';
+
+    const normalized = normalizePastedVditorMarkdown(sample);
+
+    assert.equal(
+        normalized,
+        '这里顺手记一下，__why positional embedding matters?__ 对于Transformer来说也很关键。',
+    );
+});
+
+test('normalizePastedVditorMarkdown keeps already-parseable tight inline strong markers unchanged', async () => {
+    const { normalizePastedVditorMarkdown } = await import(moduleUrl);
+    const sample = '模型会学会**适应这种随机丢失**并学会从剩余的信息中提取有效特征。';
+
+    const normalized = normalizePastedVditorMarkdown(sample);
+
+    assert.equal(normalized, sample);
+});
+
 test('normalizeVditorMarkdown canonicalizes callout blocks for IR rendering', async () => {
     const { normalizeVditorMarkdown } = await import(moduleUrl);
     const sample = String.raw`:::warning
@@ -164,4 +197,26 @@ line1
 line2
 
 :::`);
+});
+
+test('normalizeVditorMarkdown strips font tags after fenced code blocks so following markdown stays parseable', async () => {
+    const { normalizeVditorMarkdown } = await import(moduleUrl);
+    const sample = [
+        'dropout 确实会随机丢弃一部分 embedding 维度的信息，但在训练过程中，模型会学会**适应这种随机丢失**。',
+        '',
+        '```python',
+        'class Encoder(nn.Module):',
+        '    def __init__(self):',
+        '        pass',
+        '```',
+        '',
+        '## <font style="color:rgb(64, 64, 64);">位置编码层（Positional Encoding Layer）</font>',
+        '与RNN不同的是引入了position embedding，**为什么需要position embedding？**对于RNN模型来说。',
+    ].join('\n');
+
+    const normalized = normalizeVditorMarkdown(sample);
+
+    assert.doesNotMatch(normalized, /<font\b/i);
+    assert.match(normalized, /^## 位置编码层（Positional Encoding Layer）$/m);
+    assert.match(normalized, /\*\*为什么需要position embedding？\*\*/);
 });
