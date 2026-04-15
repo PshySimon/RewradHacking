@@ -2160,10 +2160,12 @@ body {
 .mac-comments-zone .vditor-toolbar {
     display: flex !important;
     flex-wrap: nowrap !important;
-    overflow: hidden !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
     padding: 2px 4px !important;
     white-space: nowrap !important;
     align-items: center !important;
+    position: relative !important;
 }
 
 .mac-comment-trigger .vditor-hint,
@@ -2177,6 +2179,19 @@ body {
 .mac-comment-trigger .vditor-hint button,
 .mac-comments-zone .vditor-hint button {
     font-size: 14px !important;
+}
+
+.mac-comment-trigger .vditor-panel,
+.mac-comments-zone .vditor-panel {
+    z-index: 2147483647 !important;
+    max-height: min(360px, 55vh) !important;
+    overflow: auto !important;
+}
+
+.mac-comment-trigger .vditor-emojis,
+.mac-comments-zone .vditor-emojis {
+    max-height: min(320px, 48vh) !important;
+    overflow: auto !important;
 }
 
 /* 杀掉 Vditor 原生的 __br 换行元素 */
