@@ -1098,6 +1098,136 @@ body {
 }
 
 /* ========================================================================= */
+/* 🖼️ 裂图修复覆盖层（由 vditorBrokenImg.js 控制）                            */
+/* ========================================================================= */
+
+.vditor-broken-img-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    cursor: pointer;
+    z-index: 2;
+    transition: all 0.12s ease;
+}
+
+.vditor-broken-img-overlay:hover {
+    background: #007AFF;
+    border-color: #007AFF;
+    box-shadow: 0 2px 10px rgba(0, 122, 255, 0.25);
+}
+
+.vditor-broken-img-inner {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #555;
+    font-size: 12px;
+    padding: 5px 10px;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.vditor-broken-img-overlay:hover .vditor-broken-img-inner {
+    color: #fff;
+}
+
+.vditor-broken-img-inner svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+}
+
+/* 加载旋转动画 */
+.vditor-broken-img-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(0, 122, 255, 0.2);
+    border-top-color: #007AFF;
+    border-radius: 50%;
+    animation: brokenImgSpin 0.6s linear infinite;
+}
+
+@keyframes brokenImgSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* ========================================================================= */
+/* 📐 段落对齐样式（由 vditorAlign.js 控制）                                  */
+/* ========================================================================= */
+
+.vditor-align--left {
+    text-align: left !important;
+}
+
+.vditor-align--center {
+    text-align: center !important;
+}
+
+.vditor-align--right {
+    text-align: right !important;
+}
+
+/* 对齐子菜单面板：挂载在 body 上，用 fixed 定位绕过 toolbar 的 overflow 裁切 */
+.vditor-align-panel {
+    position: fixed;
+    z-index: 9999;
+    display: none;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.4) inset;
+    padding: 4px;
+    min-width: 120px;
+    animation: dropScaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    user-select: none;
+}
+
+.vditor-align-panel button {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 7px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #1D1D1F;
+    transition: all 0.12s ease;
+    white-space: nowrap;
+    box-sizing: border-box;
+}
+
+.vditor-align-panel button:hover {
+    background: #007AFF;
+    color: #fff;
+}
+
+.vditor-align-panel button:hover svg {
+    fill: #fff !important;
+}
+
+.vditor-align-panel button svg {
+    width: 14px !important;
+    height: 14px !important;
+    flex-shrink: 0 !important;
+    fill: currentColor !important;
+}
+
+/* ========================================================================= */
 /* 🌌 游龙果冻追尾光标 (Jelly Caret) — 视觉引擎基座 CSS                      */
 /* ========================================================================= */
 
@@ -2432,4 +2562,194 @@ body {
     white-space: normal !important; 
     word-break: break-word !important;
     overflow-wrap: break-word !important;
+}
+
+/* Markdown callouts */
+.mac-vditor-override .vditor-reset .md-callout,
+.mac-markdown-stream .md-callout,
+.vditor-reset .md-callout {
+    --callout-accent: #4A90E2;
+    --callout-border: rgba(74, 144, 226, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 248, 255, 0.96) 100%);
+    margin: 20px 0;
+    padding: 18px 20px;
+    border-radius: 18px;
+    border: 1px solid var(--callout-border);
+    border-left: 4px solid var(--callout-accent);
+    background: var(--callout-bg);
+    box-shadow: 0 12px 28px rgba(30, 58, 95, 0.08);
+    overflow-x: auto;
+}
+
+.mac-vditor-override .vditor-reset .md-callout__title,
+.mac-markdown-stream .md-callout__title,
+.vditor-reset .md-callout__title {
+    margin-bottom: 10px;
+    color: #16324F;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.mac-vditor-override .vditor-reset .md-callout__body,
+.mac-markdown-stream .md-callout__body,
+.vditor-reset .md-callout__body {
+    color: #22384E;
+}
+
+.mac-vditor-override .vditor-reset .md-callout__body > :first-child,
+.mac-markdown-stream .md-callout__body > :first-child,
+.vditor-reset .md-callout__body > :first-child {
+    margin-top: 0;
+}
+
+.mac-vditor-override .vditor-reset .md-callout__body > :last-child,
+.mac-markdown-stream .md-callout__body > :last-child,
+.vditor-reset .md-callout__body > :last-child {
+    margin-bottom: 0;
+}
+
+.mac-vditor-override .vditor-reset .md-callout-info,
+.mac-markdown-stream .md-callout-info,
+.vditor-reset .md-callout-info {
+    --callout-accent: #3B82F6;
+    --callout-border: rgba(59, 130, 246, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(245, 249, 255, 0.98) 0%, rgba(236, 244, 255, 0.96) 100%);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-tip,
+.mac-markdown-stream .md-callout-tip,
+.vditor-reset .md-callout-tip {
+    --callout-accent: #10B981;
+    --callout-border: rgba(16, 185, 129, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(244, 253, 249, 0.98) 0%, rgba(232, 249, 240, 0.96) 100%);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-warning,
+.mac-markdown-stream .md-callout-warning,
+.vditor-reset .md-callout-warning {
+    --callout-accent: #F59E0B;
+    --callout-border: rgba(245, 158, 11, 0.28);
+    --callout-bg: linear-gradient(180deg, rgba(255, 250, 240, 0.98) 0%, rgba(255, 244, 219, 0.96) 100%);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-danger,
+.mac-markdown-stream .md-callout-danger,
+.vditor-reset .md-callout-danger {
+    --callout-accent: #EF4444;
+    --callout-border: rgba(239, 68, 68, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(255, 246, 246, 0.98) 0%, rgba(255, 234, 234, 0.96) 100%);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-note,
+.mac-markdown-stream .md-callout-note,
+.vditor-reset .md-callout-note {
+    --callout-accent: #8B5CF6;
+    --callout-border: rgba(139, 92, 246, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(248, 245, 255, 0.98) 0%, rgba(240, 234, 255, 0.96) 100%);
+}
+
+@media (max-width: 768px) {
+    .mac-vditor-override .vditor-reset .md-callout,
+    .mac-markdown-stream .md-callout,
+    .vditor-reset .md-callout {
+        padding: 16px;
+        border-radius: 16px;
+    }
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--hidden-marker,
+.mac-markdown-stream .md-callout-block--hidden-marker,
+.vditor-reset .md-callout-block--hidden-marker {
+    display: none !important;
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block,
+.mac-markdown-stream .md-callout-block,
+.vditor-reset .md-callout-block {
+    --callout-accent: #4A90E2;
+    --callout-border: rgba(74, 144, 226, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 248, 255, 0.96) 100%);
+    margin: 0;
+    padding: 0 20px 16px;
+    background: var(--callout-bg);
+    border-left: 4px solid var(--callout-accent);
+    border-right: 1px solid var(--callout-border);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--start,
+.mac-markdown-stream .md-callout-block--start,
+.vditor-reset .md-callout-block--start {
+    position: relative;
+    margin-top: 20px;
+    padding-top: 46px;
+    border-top: 1px solid var(--callout-border);
+    border-top-left-radius: 18px;
+    border-top-right-radius: 18px;
+    box-shadow: 0 12px 28px rgba(30, 58, 95, 0.08);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--start::before,
+.mac-markdown-stream .md-callout-block--start::before,
+.vditor-reset .md-callout-block--start::before {
+    content: attr(data-callout-title);
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    color: #16324F;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--end,
+.mac-markdown-stream .md-callout-block--end,
+.vditor-reset .md-callout-block--end {
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--callout-border);
+    border-bottom-left-radius: 18px;
+    border-bottom-right-radius: 18px;
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--info,
+.mac-markdown-stream .md-callout-block--info,
+.vditor-reset .md-callout-block--info {
+    --callout-accent: #3B82F6;
+    --callout-border: rgba(59, 130, 246, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(245, 249, 255, 0.98) 0%, rgba(236, 244, 255, 0.96) 100%);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--tip,
+.mac-markdown-stream .md-callout-block--tip,
+.vditor-reset .md-callout-block--tip {
+    --callout-accent: #10B981;
+    --callout-border: rgba(16, 185, 129, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(244, 253, 249, 0.98) 0%, rgba(232, 249, 240, 0.96) 100%);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--warning,
+.mac-markdown-stream .md-callout-block--warning,
+.vditor-reset .md-callout-block--warning {
+    --callout-accent: #F59E0B;
+    --callout-border: rgba(245, 158, 11, 0.28);
+    --callout-bg: linear-gradient(180deg, rgba(255, 250, 240, 0.98) 0%, rgba(255, 244, 219, 0.96) 100%);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--danger,
+.mac-markdown-stream .md-callout-block--danger,
+.vditor-reset .md-callout-block--danger {
+    --callout-accent: #EF4444;
+    --callout-border: rgba(239, 68, 68, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(255, 246, 246, 0.98) 0%, rgba(255, 234, 234, 0.96) 100%);
+}
+
+.mac-vditor-override .vditor-reset .md-callout-block--note,
+.mac-markdown-stream .md-callout-block--note,
+.vditor-reset .md-callout-block--note {
+    --callout-accent: #8B5CF6;
+    --callout-border: rgba(139, 92, 246, 0.24);
+    --callout-bg: linear-gradient(180deg, rgba(248, 245, 255, 0.98) 0%, rgba(240, 234, 255, 0.96) 100%);
 }

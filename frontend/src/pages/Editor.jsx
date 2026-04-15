@@ -9,6 +9,8 @@ import { macAlert, macConfirm } from '../components/MacModal';
 import { CodeLayout, InterviewLayout, KnowledgeLayout } from '../components/editor-templates';
 import { normalizePastedVditorMarkdown, normalizeVditorMarkdown } from '../utils/vditorMarkdown';
 import { buildVditorEditorOptions } from '../utils/vditorOptions';
+import { buildAlignToolbarItem, installAlignmentObserver, clearAlignments } from '../utils/vditorAlign';
+import { installBrokenImageHandler } from '../utils/vditorBrokenImg';
 
 export default function Editor() {
     const navigate = useNavigate();
@@ -229,6 +231,7 @@ export default function Editor() {
                     'headings', 'bold', 'italic', 'strike', '|',
                     'line', 'quote', 'list', 'ordered-list', 'check', '|',
                     'code', 'inline-code', 'table', 'link', 'upload', '|',
+                    buildAlignToolbarItem(), '|',
                     'undo', 'redo', 'fullscreen', 'edit-mode'
                 ],
                 upload: {
@@ -521,6 +524,20 @@ export default function Editor() {
                     }
                     // ====================================================================
 
+                    // =============== 📐[段落对齐状态持久化守护] ===============
+                    // 安装 MutationObserver，让对齐样式在 Lute 重渲染后自动恢复
+                    const cleanupAlignment = installAlignmentObserver();
+                    // 把清理函数挂在 vditor 实例上，销毁时一并回收
+                    vditor.__cleanupAlignment = cleanupAlignment;
+                    // ===========================================================
+
+                    // =============== 🖼️[裂图自动修复系统] ===============
+                    // 扫描编辑器中加载失败的外部图片，提供「重新获取」按钮
+                    const editorResetEl = document.querySelector('.vditor-ir .vditor-reset');
+                    const cleanupBrokenImg = installBrokenImageHandler(editorResetEl);
+                    vditor.__cleanupBrokenImg = cleanupBrokenImg;
+                    // ===================================================
+
                     setIsEditorReady(true);
                     setVditorObj(vditor);
                 }
@@ -555,7 +572,12 @@ export default function Editor() {
             document.removeEventListener('mousedown', forceHideRef, true);
             document.removeEventListener('keydown', removeHideRef, true);
             try {
-                if (vditor) vditor.destroy();
+                if (vditor) {
+                    if (vditor.__cleanupAlignment) vditor.__cleanupAlignment();
+                    if (vditor.__cleanupBrokenImg) vditor.__cleanupBrokenImg();
+                    clearAlignments();
+                    vditor.destroy();
+                }
             } catch (e) {
                 console.warn("Vditor destruction bypassed during initial render phase.");
             }

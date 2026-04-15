@@ -1,5 +1,7 @@
 const EMPTY_FORMATTED_HTML_PATTERN = /(\*\*|__)\s*<([a-zA-Z][\w-]*)\b[^>]*>\s*<\/\2>\s*\1/g;
 const ORPHAN_BOLD_MARKER_PATTERN = /(^|[\s\u3002\uff0c\uff1a:;,.!?！？])(\*\*\*\*|____)(?=(<|[\u4E00-\u9FFFA-Za-z0-9]))/gu;
+const CALLOUT_OPEN_PATTERN = /^:::(danger|info|note|tip|warning)(?:\s+.*)?$/i;
+const CALLOUT_CLOSE_PATTERN = /^:::\s*$/i;
 
 const stripEmptyFormattedHtml = (line) => {
     let normalized = line;
@@ -52,14 +54,45 @@ const countNonEmptyLines = (value) => value
     .length;
 
 const trimMalformedBoldSpacingInLine = (line) => line
-    .replace(/(\*\*|__)\s+([^*\n](?:.*?[^*\n])?)\s+\1(?=\S)/g, '$1$2$1 ')
-    .replace(/(\*\*|__)\s+([^*\n](?:.*?[^*\n])?)\s+\1/g, '$1$2$1')
-    .replace(/((?:^|\s|[+*-]\s+)(?:\*\*|__)[^*\n]+(?:\*\*|__))(?=\S)/g, '$1 ');
+    .replace(/^(\s*(?:[-+*]|\d+\.)?\s*)(\*\*|__)\s+([^*\n](?:.*?[^*\n])?)\s+\2(?=\S)/, '$1$2$3$2 ')
+    .replace(/^(\s*(?:[-+*]|\d+\.)?\s*)(\*\*|__)\s+([^*\n](?:.*?[^*\n])?)\s+\2/, '$1$2$3$2')
+    .replace(/^(\s*(?:[-+*]|\d+\.)?\s*(?:\*\*|__)[^*\n]+(?:\*\*|__))(?=\S)/, '$1 ');
 
-export const normalizePastedVditorMarkdown = (text = '') => text
-    .split('\n')
-    .map((line) => trimMalformedBoldSpacingInLine(line))
-    .join('\n');
+const normalizeCalloutBlocks = (text = '') => {
+    const lines = text.split('\n');
+    const normalized = [];
+    let inFence = false;
+
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index];
+
+        if (isFenceMarker(line)) {
+            inFence = !inFence;
+            normalized.push(line);
+            continue;
+        }
+
+        normalized.push(line);
+
+        if (inFence || !CALLOUT_OPEN_PATTERN.test(line.trim())) {
+            continue;
+        }
+
+        const nextLine = lines[index + 1];
+        if (typeof nextLine === 'string' && nextLine.trim() !== '' && !CALLOUT_CLOSE_PATTERN.test(nextLine.trim())) {
+            normalized.push('');
+        }
+    }
+
+    return normalized.join('\n');
+};
+
+export const normalizePastedVditorMarkdown = (text = '') => normalizeCalloutBlocks(
+    text
+        .split('\n')
+        .map((line) => trimMalformedBoldSpacingInLine(line))
+        .join('\n'),
+);
 
 export const normalizeVditorMarkdown = (text = '') => {
     const lines = text.split('\n');
@@ -133,5 +166,5 @@ export const normalizeVditorMarkdown = (text = '') => {
         normalized.push(line);
     }
 
-    return normalized.join('\n');
+    return normalizeCalloutBlocks(normalized.join('\n'));
 };
