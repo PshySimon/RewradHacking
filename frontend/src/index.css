@@ -293,7 +293,6 @@ body {
 .zhi-app {
     background: #F5F5F7;
     min-height: 100vh;
-    padding-top: 60px;
     color: #1D1D1F;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -301,7 +300,7 @@ body {
 
 /* 悬浮磨砂态顶栏 */
 .zhi-header {
-    position: fixed;
+    position: sticky;
     top: 0;
     left: 0;
     right: 0;
@@ -1614,7 +1613,7 @@ body {
 /* ========================================================
    极客阅读室组件区 (Mac Reading Room / ArticleDetail) 
 ======================================================== */
-.mac-reading-room { background-color: #FBFBFD; min-height: 100vh; padding-top: 70px; padding-bottom: 80px; }
+.mac-reading-room { background-color: #FBFBFD; min-height: 100vh; padding-bottom: 80px; }
 .mac-reading-back { color: #424245; font-size: 15px; font-weight: 500; cursor: pointer; transition: color 0.2s; }
 .mac-reading-back:hover { color: #0071E3; }
 .mac-reader-layout { max-width: 1200px; margin: 40px auto 0; display: flex; align-items: flex-start; gap: 40px; padding: 0 20px; }
