@@ -1162,6 +1162,125 @@ body {
 }
 
 /* ========================================================================= */
+/* 🖼️ 粘贴图片本地化进度浮窗                                                  */
+/* ========================================================================= */
+
+.mac-image-localize-toast {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    width: min(360px, calc(100vw - 32px));
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.86);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.14);
+    z-index: 9999;
+    animation: mac-image-localize-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mac-image-localize-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mac-image-localize-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    background: rgba(0, 122, 255, 0.1);
+    color: #007AFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.mac-image-localize-toast.done .mac-image-localize-icon {
+    background: rgba(52, 199, 89, 0.12);
+    color: #34C759;
+}
+
+.mac-image-localize-copy {
+    min-width: 0;
+    flex: 1;
+}
+
+.mac-image-localize-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1D1D1F;
+    letter-spacing: -0.01em;
+}
+
+.mac-image-localize-subtitle {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #86868B;
+}
+
+.mac-image-localize-percent {
+    font-size: 12px;
+    font-weight: 700;
+    color: #007AFF;
+    font-variant-numeric: tabular-nums;
+}
+
+.mac-image-localize-track {
+    height: 5px;
+    margin-top: 12px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.mac-image-localize-bar {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #007AFF, #5AC8FA);
+    transition: width 0.22s ease;
+}
+
+.mac-image-localize-url {
+    margin-top: 9px;
+    font-size: 11px;
+    color: #86868B;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mac-image-localize-spinner {
+    width: 17px;
+    height: 17px;
+    border: 2px solid rgba(0, 122, 255, 0.18);
+    border-top-color: #007AFF;
+    border-radius: 50%;
+    animation: brokenImgSpin 0.7s linear infinite;
+}
+
+@keyframes mac-image-localize-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (max-width: 640px) {
+    .mac-image-localize-toast {
+        right: 16px;
+        bottom: 16px;
+    }
+}
+
+/* ========================================================================= */
 /* 📐 段落对齐样式（由 vditorAlign.js 控制）                                  */
 /* ========================================================================= */
 

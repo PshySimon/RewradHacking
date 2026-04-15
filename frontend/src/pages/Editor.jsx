@@ -5,12 +5,14 @@ import axios from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import JellyCaret from '../components/JellyCaret';
 import TagPill from '../components/TagPill';
+import ImageLocalizationToast from '../components/ImageLocalizationToast';
 import { macAlert, macConfirm } from '../components/MacModal';
 import { CodeLayout, InterviewLayout, KnowledgeLayout } from '../components/editor-templates';
 import { normalizePastedMathSegments, normalizePastedVditorMarkdown, normalizeVditorMarkdown } from '../utils/vditorMarkdown';
 import { buildVditorEditorOptions } from '../utils/vditorOptions';
 import { buildAlignToolbarItem, installAlignmentObserver, clearAlignments } from '../utils/vditorAlign';
 import { installBrokenImageHandler } from '../utils/vditorBrokenImg';
+import { localizeExternalImagesInVditor } from '../utils/vditorImageLocalization';
 
 export default function Editor() {
     const navigate = useNavigate();
@@ -198,6 +200,8 @@ export default function Editor() {
     const vditorRef = useRef(null);
     const [vditorObj, setVditorObj] = useState(null);
     const [isEditorReady, setIsEditorReady] = useState(false);
+    const [imageLocalizationProgress, setImageLocalizationProgress] = useState(null);
+    const imageLocalizationTimerRef = useRef(null);
 
     useEffect(() => {
         if (isEditorReady && vditorObj && initialContent) {
@@ -284,6 +288,39 @@ export default function Editor() {
                             ));
                         };
 
+                        const fetchAndLocalizeImage = async (url) => {
+                            const resp = await axios.post('/api/upload/fetch_image', { url }, {
+                                headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
+                            });
+                            if (resp.data && resp.data.code === 0 && resp.data.data?.url) {
+                                return resp.data.data.url;
+                            }
+                            throw new Error(resp.data?.msg || '图片转存失败');
+                        };
+
+                        const scheduleImageLocalization = () => {
+                            window.clearTimeout(imageLocalizationTimerRef.current);
+                            imageLocalizationTimerRef.current = window.setTimeout(() => {
+                                localizeExternalImagesInVditor({
+                                    vditor,
+                                    fetchImage: fetchAndLocalizeImage,
+                                    onProgress: setImageLocalizationProgress,
+                                    concurrency: 3,
+                                }).catch(err => {
+                                    console.error('批量图片本地化失败', err);
+                                    setImageLocalizationProgress({
+                                        status: 'done',
+                                        total: 1,
+                                        completed: 1,
+                                        success: 0,
+                                        failed: 1,
+                                        currentUrl: '',
+                                        errors: [{ message: err?.message || String(err) }],
+                                    });
+                                });
+                            }, 650);
+                        };
+
                         const normalizeEditorContent = (reason = 'post-paste') => {
                             requestAnimationFrame(() => {
                                 if (!vditor) return;
@@ -302,6 +339,7 @@ export default function Editor() {
                                         });
                                     });
                                 }
+                                scheduleImageLocalization();
                             });
                         };
 
@@ -464,33 +502,6 @@ export default function Editor() {
                                     }
                                 });
 
-                                // 抢救四（大哥查漏补缺的极地救援！）：
-                                // 因为咱们刚才把原生粘贴过程一刀切断了，原生引擎对外网图片的“洗白”管道由于没触发自动下线。
-                                // 在这里必须为它单独开个后门，手动找出所有被缴获来的外网图片，一并扔向服务器！！
-                                doc.querySelectorAll('img').forEach(img => {
-                                    let src = img.getAttribute('src') || '';
-                                    // 如果发现非咱们本地的正经图，或者带有各种防盗链大长串的知乎防盗图
-                                    if (src.startsWith('http') && !src.includes('/api/static/images')) {
-                                        // 开启地下黑市快车直连
-                                        axios.post('/api/upload/fetch_image', { url: src }, {
-                                            headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
-                                        }).then(resp => {
-                                            if (resp.data && resp.data.code === 0) {
-                                                const newLocalUrl = resp.data.data.url;
-                                                // 图片运回来是异步的，编辑器可能还在动。我们在真实的地盘上使用动态射杀替换原来的赃物！
-                                                const editorDOM = document.querySelector('.vditor-ir');
-                                                if (editorDOM) {
-                                                    editorDOM.querySelectorAll(`img[src="${src}"]`).forEach(node => {
-                                                        node.setAttribute('src', newLocalUrl);
-                                                    });
-                                                }
-                                            }
-                                        }).catch(err => {
-                                            console.error('拦截知乎图档送下洗白失败', err);
-                                        });
-                                    }
-                                });
-
                                 // 重新利用浏览器的底牌，强行把解过毒的干净 HTML 插回编辑靶心
                                 // Vditor 后置的 MutationObserver 将顺滑无比地消化掉这些不带刺的结构
                                 let finalHtml = doc.body.innerHTML;
@@ -554,6 +565,7 @@ export default function Editor() {
             clearTimeout(timerId);
             document.removeEventListener('mousedown', forceHideRef, true);
             document.removeEventListener('keydown', removeHideRef, true);
+            window.clearTimeout(imageLocalizationTimerRef.current);
             try {
                 if (vditor) {
                     if (vditor.__cleanupAlignment) vditor.__cleanupAlignment();
@@ -821,6 +833,8 @@ export default function Editor() {
                     </div>
                 </div>
             )}
+
+            <ImageLocalizationToast progress={imageLocalizationProgress} />
         </div>
     );
 }
