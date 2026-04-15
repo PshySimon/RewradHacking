@@ -1856,15 +1856,18 @@ body {
 }
 .mac-annotation-emoji-btn {
     border: 1px solid #E6E6EA;
-    border-radius: 999px;
-    width: 32px;
-    height: 32px;
+    border-radius: 8px;
+    width: 26px;
+    height: 26px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #F8F8F8;
+    background: #FFFFFF;
     cursor: pointer;
     transition: background 0.2s;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1;
 }
 .mac-annotation-emoji-btn:hover {
     background: #F0F7FF;
@@ -2161,6 +2164,19 @@ body {
     padding: 2px 4px !important;
     white-space: nowrap !important;
     align-items: center !important;
+}
+
+.mac-comment-trigger .vditor-hint,
+.mac-comments-zone .vditor-hint {
+    max-height: min(360px, 55vh) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    z-index: 2147483647 !important;
+}
+
+.mac-comment-trigger .vditor-hint button,
+.mac-comments-zone .vditor-hint button {
+    font-size: 14px !important;
 }
 
 /* 杀掉 Vditor 原生的 __br 换行元素 */

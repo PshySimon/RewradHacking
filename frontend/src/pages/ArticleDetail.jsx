@@ -129,23 +129,23 @@ export default function ArticleDetail() {
         }
     };
 
-    const clampComposerPosition = (rect) => {
+    const clampComposerPosition = ({ x: pointerX, y: pointerY }) => {
         const margin = 12;
         const popupWidth = Math.min(360, Math.max(260, window.innerWidth - 24));
         const maxAvailableHeight = window.innerHeight - margin * 2;
         const preferredHeight = Math.min(360, maxAvailableHeight);
-        const contentBottomSpace = window.innerHeight - margin - rect.top;
+        const contentBottomSpace = window.innerHeight - margin - pointerY;
         const popupHeight = Math.max(220, Math.min(preferredHeight, contentBottomSpace));
 
-        let x = rect.right + 10;
+        let x = pointerX + 10;
         if (x + popupWidth > window.innerWidth - margin) {
-            x = rect.left - popupWidth - 10;
+            x = pointerX - popupWidth - 10;
         }
         if (x < margin) {
             x = margin;
         }
 
-        let y = rect.top;
+        let y = pointerY - 12;
         if (y + popupHeight > window.innerHeight - margin) {
             y = window.innerHeight - popupHeight - margin;
         }
@@ -251,8 +251,11 @@ export default function ArticleDetail() {
                 event.preventDefault();
                 event.stopPropagation();
 
-                const rect = block.getBoundingClientRect();
-                const { x, y, popupWidth, popupHeight } = clampComposerPosition(rect);
+                const pointer = {
+                    x: event.clientX,
+                    y: event.clientY,
+                };
+                const { x, y, popupWidth, popupHeight } = clampComposerPosition(pointer);
                 setComposerPos({
                     x,
                     y,
