@@ -77,13 +77,49 @@ export default function ArticleDetail() {
             const res = await axios.get(`/api/articles/${id}`, { headers });
             document.title = `${res.data.title} - RewardHacking`;
             setArticle(res.data);
-            if (!res.data.is_restricted) {
-                generateOutline(res.data.content);
+            if (res.data.is_restricted) {
+                setOutline([]);
             }
         } catch (error) {
             console.error("加载文章失败：", error);
             if (error.response?.status === 404) navigate('/');
         }
+    };
+
+    const buildOutlineFromRenderedPreview = () => {
+        const root = document.getElementById('mac-vditor-preview');
+        if (!root) {
+            setOutline([]);
+            return;
+        }
+
+        const headings = root.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        const seen = new Set();
+        const out = [];
+
+        headings.forEach((heading, index) => {
+            const title = (heading.textContent || '').trim();
+            if (!title) {
+                return;
+            }
+
+            let headingId = `heading-${index}`;
+            let suffix = 1;
+            while (seen.has(headingId)) {
+                headingId = `heading-${index}-${suffix}`;
+                suffix += 1;
+            }
+            seen.add(headingId);
+            heading.id = headingId;
+
+            out.push({
+                level: Number(heading.tagName[1]),
+                title,
+                id: headingId,
+            });
+        });
+
+        setOutline(out);
     };
 
     useEffect(() => {
@@ -115,40 +151,27 @@ export default function ArticleDetail() {
                         renderedHtml: renderedElement?.innerHTML || '',
                     });
                 }
+                buildOutlineFromRenderedPreview();
                 setIsMainContentReady(true);
             }).catch(e => {
                 console.error("正文Vditor底层解析故障", e);
+                setOutline([]);
                 setIsMainContentReady(true);
             });
+            return;
         }
+
+        setIsMainContentReady(false);
+        setOutline([]);
     }, [article]);
 
-    const generateOutline = (content) => {
-        const regex = /^(#{1,6})\s+(.+)$/gm;
-        let match;
-        const out = [];
-        let index = 0;
-        while ((match = regex.exec(content)) !== null) {
-            out.push({
-                level: match[1].length,
-                title: match[2],
-                id: `heading-${index}`,
-                rawLength: match[0].length
-            });
-            index++;
-        }
-        setOutline(out);
-    };
-
     // 锚点平滑降落协议
-    const scrollToHeading = (title) => {
-        const elements = document.querySelectorAll('#mac-vditor-preview h1, #mac-vditor-preview h2, #mac-vditor-preview h3, #mac-vditor-preview h4, #mac-vditor-preview h5, #mac-vditor-preview h6');
-        for (let el of elements) {
-            if (el.textContent.includes(title)) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                break;
-            }
+    const scrollToHeading = (headingId) => {
+        const target = document.getElementById(headingId);
+        if (!target) {
+            return;
         }
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     // 删除文章操作
@@ -276,7 +299,7 @@ export default function ArticleDetail() {
                                     <li 
                                         key={idx} 
                                         style={{ paddingLeft: `${(item.level - 1) * 12}px` }}
-                                        onClick={() => scrollToHeading(item.title)}
+                                        onClick={() => scrollToHeading(item.id)}
                                     >
                                         {item.title}
                                     </li>

@@ -4,6 +4,29 @@ import { useNavigate } from 'react-router-dom';
 import { macAlert, macConfirm } from '../components/MacModal';
 import TagPill from '../components/TagPill';
 import AuthModal from '../components/AuthModal';
+import { markdownExcerpt } from '../utils/markdownText';
+
+const ArticleExcerpt = ({ content, maxLength = 180 }) => {
+    const [excerpt, setExcerpt] = useState('');
+
+    useEffect(() => {
+        let disposed = false;
+
+        const buildExcerpt = async () => {
+            const text = await markdownExcerpt(content, maxLength);
+            if (!disposed) {
+                setExcerpt(text || '暂无可展示内容');
+            }
+        };
+        buildExcerpt();
+
+        return () => {
+            disposed = true;
+        };
+    }, [content, maxLength]);
+
+    return <>{excerpt || '加载中...'}</>;
+};
 
 export default function Dashboard() {
     const [articles, setArticles] = useState([]);
@@ -235,7 +258,7 @@ export default function Dashboard() {
                                         {isRestricted ? (
                                             <span style={{ color: '#86868B', fontStyle: 'italic' }}>🔒 登录后可查看全文</span>
                                         ) : (
-                                            <>{a.content.substring(0, 180)}...</>
+                                            <ArticleExcerpt content={a.content} />
                                         )}
                                     </div>
                                     <div className="zhi-card-footer">
