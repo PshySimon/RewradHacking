@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Any
 import os
+import re
 
 from .. import schemas, database, models, auth
 from ..image_assets import clear_image_references, sync_image_references
@@ -217,6 +218,16 @@ def delete_article(
 
 from datetime import datetime
 
+
+def _normalize_annotation_text(value: str) -> str:
+    text = (value or "").strip()
+    # 安全上限：批注是轻量交互，不应超过 1200 字
+    if len(text) > 1200:
+        text = text[:1200]
+
+    # 清理可疑注入，保留 plain text + emoji 的体验边界
+    return re.sub(r"<[^>]*>", "", text)
+
 @router.get("/{article_id}/comments", response_model=List[schemas.CommentOut])
 def read_comments(
     article_id: str, 
@@ -330,6 +341,89 @@ def create_comment(
     res.author_avatar = current_user.avatar
     res.author_role = current_user.role.value
     return res
+
+
+@router.get("/{article_id}/annotations", response_model=List[schemas.AnnotationOut])
+def read_annotations(
+    article_id: str,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_optional_user)
+):
+    """ 批注按行读取：用于阅读侧边栏“批注”模块。"""
+    annotations = (
+        db.query(models.Annotation)
+        .filter(models.Annotation.article_id == article_id)
+        .order_by(models.Annotation.id.asc())
+        .all()
+    )
+
+    out = []
+    for annotation in annotations:
+        user = db.query(models.User).filter(models.User.id == annotation.author_id).first()
+        item = schemas.AnnotationOut.model_validate(annotation)
+        if user:
+            item.author_username = user.username
+            item.author_nickname = user.nickname
+            item.author_avatar = user.avatar
+            item.is_owner = current_user is not None and current_user.id == user.id
+        else:
+            item.author_username = "已注销的用户"
+        out.append(item)
+
+    return out
+
+
+@router.post("/{article_id}/annotations", response_model=schemas.AnnotationOut)
+def create_annotation(
+    article_id: str,
+    annotation_in: schemas.AnnotationCreate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """ 纯文本批注：定位到正文的某一行，支持 emoji，限制 markdown 语义。"""
+    article = db.query(models.Article).filter(models.Article.id == article_id).first()
+    if not article:
+        raise HTTPException(status_code=404, detail="底层文章实体已遗失。")
+
+    content = _normalize_annotation_text(annotation_in.content)
+    if not content:
+        raise HTTPException(status_code=400, detail="批注内容不能为空。")
+
+    line_text = _normalize_annotation_text(annotation_in.line_text or "")
+    if annotation_in.line_index < 1:
+        raise HTTPException(status_code=400, detail="非法的行索引。")
+
+    new_annotation = models.Annotation(
+        article_id=article_id,
+        author_id=current_user.id,
+        line_index=annotation_in.line_index,
+        line_text=line_text[:240],
+        content=content,
+    )
+    db.add(new_annotation)
+    db.flush()
+
+    target_path = f"/article/{article_id}#annotation-{new_annotation.id}"
+    if current_user.id != article.author_id:
+        db.add(models.Notification(
+            recipient_id=article.author_id,
+            actor_id=current_user.id,
+            article_id=article_id,
+            comment_id=new_annotation.id,
+            event_type="annotation",
+            target_path=target_path,
+            snippet=f"第{annotation_in.line_index}行：{content[0:120]}",
+        ))
+
+    db.commit()
+    db.refresh(new_annotation)
+
+    out = schemas.AnnotationOut.model_validate(new_annotation)
+    out.author_username = current_user.username
+    out.author_nickname = current_user.nickname
+    out.author_avatar = current_user.avatar
+    out.is_owner = True
+    return out
 
 @router.post("/{article_id}/comments/{comment_id}/like")
 def toggle_like_comment(

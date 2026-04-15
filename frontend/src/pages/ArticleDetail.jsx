@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import ErrorPage from './ErrorPage';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import TagPill from '../components/TagPill';
@@ -11,6 +10,38 @@ import NotificationBell from '../components/NotificationBell';
 import AuthModal from '../components/AuthModal';
 import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
 import { buildVditorRenderOptions } from '../utils/vditorOptions';
+
+const ANNOTATION_EMOJI_BANK = ['💬', '👍', '👏', '🙏', '🔥', '🎯', '🤔', '🚀', '✅', '✨'];
+
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const normalizeAnnotationText = (value) => {
+    return (value || '').replace(/\s+/g, ' ').trim();
+};
+
+const getLineTextFromNode = (node) => {
+    if (!node) {
+        return '';
+    }
+    const text = (node.textContent || '').replace(/\u00A0/g, ' ').replace(/[\u200B-\u200D\uFEFF]/g, '');
+    return text.replace(/\s+/g, ' ').trim();
+};
+
+const stripHeadingMarkup = (nodeText) => {
+    if (!nodeText) {
+        return '';
+    }
+
+    return nodeText
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/__(.*?)__/g, '$1')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/^\s*[#>*_`~]+\s*/, '')
+        .trim();
+};
 
 // 骨架屏炫光占位层
 const ArticleSkeleton = () => (
@@ -50,6 +81,14 @@ export default function ArticleDetail() {
     const [isOutlineVisible, setIsOutlineVisible] = useState(true);
     const [isMainContentReady, setIsMainContentReady] = useState(false);
     const [focusCommentId, setFocusCommentId] = useState('');
+    const [focusAnnotationId, setFocusAnnotationId] = useState('');
+    const [annotations, setAnnotations] = useState([]);
+    const [activeComposeLine, setActiveComposeLine] = useState(null);
+    const [activeComposeText, setActiveComposeText] = useState('');
+    const [composerPos, setComposerPos] = useState({ x: 0, y: 0, lineIndex: null, lineText: '' });
+    const annotationComposerRef = useRef(null);
+    const annotationTextAreaRef = useRef(null);
+    const articlePreviewRef = useRef(null);
     
     // 登录弹窗
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -67,7 +106,8 @@ export default function ArticleDetail() {
                 return;
             }
             setUser(res.data);
-        } catch (err) {
+        } catch (error) {
+            console.error('加载用户信息失败：', error);
             localStorage.removeItem('access_token');
             setUser(null);
         }
@@ -87,6 +127,119 @@ export default function ArticleDetail() {
             console.error("加载文章失败：", error);
             if (error.response?.status === 404) navigate('/');
         }
+    };
+
+    const fetchAnnotations = async () => {
+        if (!article || article.is_restricted) {
+            setAnnotations([]);
+            return;
+        }
+
+        try {
+            const res = await axios.get(`/api/articles/${id}/annotations`);
+            const list = Array.isArray(res.data) ? res.data : [];
+            const normalized = list
+                .filter((item) => item && item.id)
+                .map((item) => ({
+                    ...item,
+                    line_text: normalizeAnnotationText(item.line_text || ''),
+                    content: normalizeAnnotationText(item.content || ''),
+                }))
+                .sort((a, b) => {
+                    if (a.line_index !== b.line_index) {
+                        return Number(a.line_index || 0) - Number(b.line_index || 0);
+                    }
+                    return (a.created_at || '').localeCompare(b.created_at || '');
+                });
+            setAnnotations(normalized);
+        } catch (error) {
+            console.error('加载批注失败：', error);
+            setAnnotations([]);
+        }
+    };
+
+    const buildLineAnnotationAnchors = () => {
+        const root = articlePreviewRef.current;
+        if (!root) {
+            return;
+        }
+
+        const annotationLineMap = {};
+        annotations.forEach((annotation) => {
+            if (!annotation || annotation.line_index < 1) {
+                return;
+            }
+
+            if (!annotationLineMap[annotation.line_index]) {
+                annotationLineMap[annotation.line_index] = 0;
+            }
+            annotationLineMap[annotation.line_index] += 1;
+        });
+
+        const blocks = Array.from(root.children);
+        let lineIndex = 0;
+        const seen = new Set();
+        const seenButtons = new Set();
+
+        blocks.forEach((block) => {
+            if (!(block instanceof HTMLElement)) {
+                return;
+            }
+
+            const text = getLineTextFromNode(block);
+            if (!text) {
+                block.removeAttribute('data-annotation-line');
+                block.classList.remove('mac-line-annotated');
+                block.style.position = '';
+                block.style.paddingRight = '';
+                return;
+            }
+
+            lineIndex += 1;
+            block.dataset.annotationLine = String(lineIndex);
+            block.style.position = block.style.position || 'relative';
+            block.style.paddingRight = '44px';
+            block.classList.add('mac-line-annotated');
+
+            let marker = block.querySelector(':scope > .mac-line-annotation-btn');
+            if (!marker) {
+                marker = document.createElement('button');
+                marker.type = 'button';
+                marker.className = 'mac-line-annotation-btn';
+                marker.setAttribute('aria-label', '添加批注');
+                block.appendChild(marker);
+            }
+
+            const normalizedText = text.slice(0, 180);
+            marker.dataset.annotationLine = String(lineIndex);
+            marker.dataset.annotationText = normalizedText;
+            const hasAnnotation = annotationLineMap[lineIndex] > 0;
+            marker.textContent = hasAnnotation ? `💬${annotationLineMap[lineIndex]}` : '＋';
+            marker.title = `为第 ${lineIndex} 行添加批注`;
+            marker.onclick = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const rect = block.getBoundingClientRect();
+                setComposerPos({
+                    x: rect.right + window.scrollX + 10,
+                    y: rect.top + window.scrollY,
+                    lineIndex,
+                    lineText: normalizedText,
+                });
+                setActiveComposeLine(lineIndex);
+            };
+
+            seen.add(block);
+            seenButtons.add(marker);
+        });
+
+        Array.from(root.querySelectorAll('.mac-line-annotation-btn')).forEach((node) => {
+            const parent = node.parentElement;
+            if (!parent || !seen.has(parent) || !seenButtons.has(node)) {
+                node.remove();
+            }
+        });
     };
 
     const buildOutlineFromRenderedPreview = () => {
@@ -138,18 +291,143 @@ export default function ArticleDetail() {
         title = title.replace(/&nbsp;/g, ' ');
         title = title.replace(/[\u200B-\u200D\uFEFF]/g, '');
         title = title.replace(/\s{2,}/g, ' ');
-        return title.trim();
+        return stripHeadingMarkup(title.trim());
+    };
+
+    const closeAnnotationComposer = () => {
+        setActiveComposeLine(null);
+        setActiveComposeText('');
+        setComposerPos({ x: 0, y: 0, lineIndex: null, lineText: '' });
+    };
+
+    const handleCreateAnnotation = async () => {
+        const plainContent = normalizeAnnotationText(activeComposeText);
+        if (!plainContent || !composerPos.lineIndex) {
+            return;
+        }
+
+        const headers = getAuthHeaders();
+        if (!headers.Authorization) {
+            setShowAuthModal(true);
+            setAuthModalTab('login');
+            return;
+        }
+
+        try {
+            const res = await axios.post(
+                `/api/articles/${id}/annotations`,
+                {
+                    content: plainContent,
+                    line_index: composerPos.lineIndex,
+                    line_text: composerPos.lineText,
+                },
+                { headers }
+            );
+
+            const next = normalizeAnnotationText(res.data?.content || plainContent);
+            setAnnotations((prev) => [...prev, { ...res.data, content: next }].sort((a, b) => {
+                if (a.line_index !== b.line_index) {
+                    return Number(a.line_index || 0) - Number(b.line_index || 0);
+                }
+                return (a.created_at || '').localeCompare(b.created_at || '');
+            }));
+
+            closeAnnotationComposer();
+            setTimeout(() => {
+                setFocusAnnotationId(res.data?.id || '');
+                window.location.hash = `#annotation-${res.data?.id || ''}`;
+            }, 0);
+            buildLineAnnotationAnchors();
+        } catch (error) {
+            console.error('提交批注失败：', error);
+            macAlert(error.response?.data?.detail || '提交失败，请稍后再试。', '批注失败');
+        }
+    };
+
+    const addAnnotationEmoji = (emoji) => {
+        const textarea = annotationTextAreaRef.current;
+        if (!textarea) {
+            setActiveComposeText((curr) => `${curr}${emoji}`);
+            return;
+        }
+
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || 0;
+        const next = `${activeComposeText.slice(0, start)}${emoji}${activeComposeText.slice(end)}`;
+        setActiveComposeText(next);
+        requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+        });
+    };
+
+    const scrollToAnchor = (anchorId) => {
+        const target = document.getElementById(anchorId);
+        if (!target) {
+            return false;
+        }
+
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.classList.add('mac-annotation-focus');
+        setTimeout(() => {
+            target.classList.remove('mac-annotation-focus');
+        }, 1600);
+        return true;
+    };
+
+    const focusAnnotationByHash = () => {
+        if (!focusAnnotationId) {
+            return;
+        }
+
+        let tries = 0;
+        const maxTries = 16;
+        const tryScroll = () => {
+            const anchorId = `annotation-${focusAnnotationId}`;
+            const ok = scrollToAnchor(anchorId);
+            if (ok) {
+                return;
+            }
+
+            tries += 1;
+            if (tries < maxTries) {
+                setTimeout(tryScroll, 200);
+            }
+        };
+
+        tryScroll();
     };
 
     useEffect(() => {
         const hash = (location.hash || '').trim();
-        const match = hash.match(/^#comment-([\w-]+)$/);
-        if (match && match[1]) {
-            setFocusCommentId(match[1]);
+        const commentMatch = hash.match(/^#comment-([\w-]+)$/);
+        if (commentMatch && commentMatch[1]) {
+            setFocusCommentId(commentMatch[1]);
+            setFocusAnnotationId('');
             return;
         }
+
+        const annotationMatch = hash.match(/^#annotation-([\w-]+)$/);
+        if (annotationMatch && annotationMatch[1]) {
+            setFocusCommentId('');
+            setFocusAnnotationId(annotationMatch[1]);
+            return;
+        }
+
         setFocusCommentId('');
+        setFocusAnnotationId('');
     }, [location.hash]);
+
+    useEffect(() => {
+        fetchAnnotations();
+    }, [article]);
+
+    useEffect(() => {
+        if (activeComposeLine === null || !annotationTextAreaRef.current) {
+            return;
+        }
+        annotationTextAreaRef.current.focus();
+    }, [activeComposeLine]);
 
     useEffect(() => {
         fetchMe();
@@ -181,10 +459,13 @@ export default function ArticleDetail() {
                     });
                 }
                 buildOutlineFromRenderedPreview();
+                buildLineAnnotationAnchors();
+                focusAnnotationByHash();
                 setIsMainContentReady(true);
             }).catch(e => {
                 console.error("正文Vditor底层解析故障", e);
                 setOutline([]);
+                buildLineAnnotationAnchors();
                 setIsMainContentReady(true);
             });
             return;
@@ -193,6 +474,36 @@ export default function ArticleDetail() {
         setIsMainContentReady(false);
         setOutline([]);
     }, [article]);
+
+    useEffect(() => {
+        if (!isMainContentReady || !articlePreviewRef.current || article?.is_restricted) {
+            return;
+        }
+        buildLineAnnotationAnchors();
+    }, [annotations, isMainContentReady]);
+
+    useEffect(() => {
+        if (!focusAnnotationId) {
+            return;
+        }
+        focusAnnotationByHash();
+    }, [focusAnnotationId, annotations, isMainContentReady]);
+
+    useEffect(() => {
+        if (activeComposeLine === null) {
+            return;
+        }
+
+        const handleClickOutside = (event) => {
+            if (!annotationComposerRef.current || annotationComposerRef.current.contains(event.target)) {
+                return;
+            }
+            closeAnnotationComposer();
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [activeComposeLine]);
 
     // 锚点平滑降落协议
     const scrollToHeading = (headingId) => {
@@ -380,7 +691,91 @@ export default function ArticleDetail() {
                                 </div>
                             </div>
                         ) : (
-                            <div id="mac-vditor-preview" className="mac-markdown-stream"></div>
+                            <div
+                                id="mac-vditor-preview"
+                                ref={articlePreviewRef}
+                                className="mac-markdown-stream"
+                                style={{ position: 'relative' }}
+                            ></div>
+                        )}
+
+                        {activeComposeLine !== null && (
+                            <div
+                                ref={annotationComposerRef}
+                                className="mac-annotation-composer"
+                                style={{ left: composerPos.x, top: composerPos.y }}
+                            >
+                                <div className="mac-annotation-composer-title">
+                                    <span>第 {composerPos.lineIndex} 行批注</span>
+                                    <span>{activeComposeText.length}/1200</span>
+                                </div>
+                                <div className="mac-annotation-composer-line">{composerPos.lineText}</div>
+                                <textarea
+                                    ref={annotationTextAreaRef}
+                                    className="mac-annotation-textarea"
+                                    placeholder="添加批注（仅支持文字+表情）"
+                                    value={activeComposeText}
+                                    onChange={(event) => setActiveComposeText(normalizeAnnotationText(event.target.value))}
+                                    maxLength={1200}
+                                />
+                                <div className="mac-annotation-emojis" role="list">
+                                    {ANNOTATION_EMOJI_BANK.map((emoji) => (
+                                        <button
+                                            type="button"
+                                            key={emoji}
+                                            className="mac-annotation-emoji-btn"
+                                            onClick={() => addAnnotationEmoji(emoji)}
+                                        >
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="mac-annotation-composer-actions">
+                                    <button
+                                        type="button"
+                                        className="mac-comment-submit"
+                                        onClick={closeAnnotationComposer}
+                                    >
+                                        取消
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="mac-comment-submit"
+                                        onClick={handleCreateAnnotation}
+                                        disabled={normalizeAnnotationText(activeComposeText).length === 0 || normalizeAnnotationText(activeComposeText).length > 1200}
+                                    >
+                                        发布
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="mac-annotations-zone">
+                        <h3>批注</h3>
+                        {annotations.length === 0 ? (
+                            <div className="mac-annotation-empty">暂无批注，点开正文右侧按钮可发起批注</div>
+                        ) : (
+                            <div className="mac-annotations-list">
+                                {annotations.map((annotation) => (
+                                    <div
+                                        key={annotation.id}
+                                        id={`annotation-${annotation.id}`}
+                                        className={`mac-annotation-item ${focusAnnotationId === annotation.id ? 'mac-annotation-item--focus' : ''}`}
+                                    >
+                                        <div className="mac-annotation-meta">
+                                            <span className="mac-annotation-user">
+                                                {annotation.author_nickname || annotation.author_username}
+                                            </span>
+                                            <span>{annotation.created_at}</span>
+                                        </div>
+                                        <div className="mac-annotation-snippet">
+                                            第 {annotation.line_index} 行：{annotation.line_text || ''}
+                                        </div>
+                                        <div className="mac-annotation-content">{annotation.content}</div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
 

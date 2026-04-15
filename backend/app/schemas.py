@@ -1,7 +1,6 @@
-from pydantic import BaseModel, ConfigDict
 from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
 from .models import RoleEnum, CategoryEnum, VisibilityEnum
 
 class UserCreate(BaseModel):
@@ -102,6 +101,27 @@ class NotificationOut(BaseModel):
     snippet: str = ""
     article_title: str = ""
 
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AnnotationCreate(BaseModel):
+    content: str
+    line_index: int
+    line_text: Optional[str] = ""
+
+
+class AnnotationOut(BaseModel):
+    id: str
+    article_id: str
+    author_id: int
+    line_index: int
+    line_text: str
+    content: str
+    created_at: str
+    author_username: str = ""
+    author_nickname: Optional[str] = None
+    author_avatar: Optional[str] = None
+    is_owner: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 class DraftCreate(BaseModel):

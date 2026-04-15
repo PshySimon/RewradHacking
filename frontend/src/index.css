@@ -1769,6 +1769,171 @@ body {
     line-height: 1.8;
     color: #1D1D1F;
     padding-bottom: 160px;
+    position: relative;
+}
+.mac-line-annotated {
+    position: relative;
+    padding-right: 44px;
+}
+.mac-line-annotation-btn {
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(0, 113, 227, 0.25);
+    border-radius: 14px;
+    background: #FFFFFF;
+    color: #005FCC;
+    font-size: 11px;
+    line-height: 26px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.08);
+    z-index: 2;
+}
+.mac-line-annotation-btn:hover {
+    border-color: #0071E3;
+    background: #EAF2FF;
+}
+.mac-line-annotation-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.25);
+}
+
+.mac-annotation-composer {
+    position: absolute;
+    z-index: 300;
+    width: 320px;
+    background: #FFFFFF;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.mac-annotation-composer-title {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #1D1D1F;
+    font-weight: 600;
+}
+.mac-annotation-composer-line {
+    font-size: 12px;
+    color: #86868B;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mac-annotation-textarea {
+    width: 100%;
+    min-height: 80px;
+    max-height: 180px;
+    resize: vertical;
+    border-radius: 10px;
+    border: 1px solid #D2D2D7;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    font-family: inherit;
+    color: #1D1D1F;
+    outline: none;
+    box-sizing: border-box;
+}
+.mac-annotation-textarea:focus {
+    border-color: #0071E3;
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12);
+}
+.mac-annotation-emojis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.mac-annotation-emoji-btn {
+    border: 1px solid #E6E6EA;
+    border-radius: 999px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #F8F8F8;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.mac-annotation-emoji-btn:hover {
+    background: #F0F7FF;
+}
+.mac-annotation-composer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.mac-annotations-zone {
+    background: #FFFFFF;
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+    padding: 24px;
+}
+.mac-annotations-zone h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1D1D1F;
+    margin-bottom: 16px;
+}
+.mac-annotations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.mac-annotation-item {
+    padding: 12px;
+    border-radius: 12px;
+    background: #FAFAFC;
+    border: 1px solid #F0F0F5;
+}
+.mac-annotation-item--focus {
+    background: #EDF7FF;
+    border-color: rgba(0, 113, 227, 0.35);
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
+}
+.mac-annotation-focus {
+    background: #EDF7FF;
+    border-color: rgba(0, 113, 227, 0.35);
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
+}
+.mac-annotation-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: #86868B;
+    margin-bottom: 6px;
+}
+.mac-annotation-user {
+    font-weight: 600;
+    color: #424245;
+    font-size: 13px;
+}
+.mac-annotation-snippet {
+    font-size: 12px;
+    color: #86868B;
+    margin-bottom: 6px;
+}
+.mac-annotation-content {
+    font-size: 14px;
+    color: #1D1D1F;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+.mac-annotation-empty {
+    color: #8A8A90;
+    font-size: 14px;
 }
 .mac-comments-zone { background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); padding: 24px; }
 .mac-comments-zone h3 { font-size: 18px; font-weight: 600; color: #1D1D1F; margin-bottom: 24px; }

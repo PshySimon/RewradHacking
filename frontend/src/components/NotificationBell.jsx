@@ -20,6 +20,15 @@ const formatNotificationText = (notification) => {
         return `${actor} 评论了你的文章`;
     }
 
+    if (notification.event_type === 'annotation') {
+        const match = (notification.snippet || '').match(/第\\s*(\\d+)\\s*行/);
+        if (match && match[1]) {
+            return `${actor} 在第 ${match[1]} 行批注了你的文章`;
+        }
+
+        return `${actor} 发表了新的批注`;
+    }
+
     return `${actor} 发表了新的评论`;
 };
 

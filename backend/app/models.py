@@ -93,6 +93,18 @@ class Notification(Base):
         UniqueConstraint("recipient_id", "comment_id", name="uq_notification_recipient_comment"),
     )
 
+
+class Annotation(Base):
+    __tablename__ = "annotations"
+
+    id = Column(String(16), primary_key=True, index=True, default=generate_nano_id)
+    article_id = Column(String(16), ForeignKey("articles.id"), nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    line_index = Column(Integer, nullable=False)
+    line_text = Column(String(240), default="", nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(String, default=get_current_time)
+
 class SolutionMapping(Base):
     __tablename__ = "solution_mappings"
 
