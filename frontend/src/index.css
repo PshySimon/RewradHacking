@@ -1594,7 +1594,7 @@ body {
 
 .mac-modal-overlay {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    inset: 0;
     /* 将原生黑色改写为透叠环境光的浓烈物理毛玻璃掩体 */
     background: rgba(0, 0, 0, 0.35);
     backdrop-filter: blur(12px) saturate(180%);
@@ -1602,8 +1602,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+    overflow: auto;
     z-index: 99999;
     animation: mac-modal-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.auth-modal-overlay {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 @keyframes mac-modal-fade-in {
@@ -2539,6 +2547,10 @@ body {
     padding: 36px 32px 28px;
     width: 400px;
     max-width: 92vw;
+    max-height: calc(100vh - 56px);
+    overflow: auto;
+    box-sizing: border-box;
+    scrollbar-width: thin;
     box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15), 0 10px 20px rgba(0, 0, 0, 0.06);
     animation: mac-modal-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     position: relative;

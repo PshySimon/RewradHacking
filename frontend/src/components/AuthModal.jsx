@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import axios from 'axios';
 
 /**
@@ -94,8 +95,8 @@ export default function AuthModal({ visible, onClose, onSuccess, initialTab = 'l
         }
     };
 
-    return (
-        <div className="mac-modal-overlay" onClick={onClose}>
+    return ReactDOM.createPortal(
+        <div className="mac-modal-overlay auth-modal-overlay" onClick={onClose}>
             <div className="auth-modal-card" onClick={e => e.stopPropagation()}>
                 {/* Logo */}
                 <div className="auth-modal-logo">
@@ -201,6 +202,7 @@ export default function AuthModal({ visible, onClose, onSuccess, initialTab = 'l
                     </svg>
                 </button>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
