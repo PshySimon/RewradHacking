@@ -73,6 +73,26 @@ class CommentLike(Base):
     comment_id = Column(String(16), ForeignKey("comments.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
 
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(String(16), primary_key=True, index=True, default=generate_nano_id)
+    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    article_id = Column(String(16), ForeignKey("articles.id"), nullable=False)
+    comment_id = Column(String(16), ForeignKey("comments.id"), nullable=False)
+    parent_comment_id = Column(String(16), ForeignKey("comments.id"), nullable=True)
+    event_type = Column(String(32), default="comment", nullable=False)
+    is_read = Column(Boolean, default=False, nullable=False)
+    target_path = Column(String(256), nullable=False)
+    snippet = Column(String(240), default="", nullable=False)
+    created_at = Column(String, default=get_current_time)
+
+    __table_args__ = (
+        UniqueConstraint("recipient_id", "comment_id", name="uq_notification_recipient_comment"),
+    )
+
 class SolutionMapping(Base):
     __tablename__ = "solution_mappings"
 

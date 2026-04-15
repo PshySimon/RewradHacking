@@ -429,6 +429,126 @@ body {
     background: rgba(227, 0, 0, 0.05);
 }
 
+.zhi-notification-wrapper {
+    position: relative;
+}
+
+.zhi-notification-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #FFF;
+    color: #4A4A4A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    position: relative;
+}
+
+.zhi-notification-btn:hover {
+    border-color: rgba(0, 113, 227, 0.5);
+    color: #0071E3;
+    transform: scale(1.02);
+}
+
+.zhi-notification-badge {
+    position: absolute;
+    top: -3px;
+    right: -4px;
+    min-width: 15px;
+    height: 15px;
+    border-radius: 999px;
+    background: #EF4444;
+    color: #FFF;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+    padding: 0 4px;
+    box-shadow: 0 0 0 2px #F5F5F7;
+}
+
+.zhi-notification-popover {
+    position: absolute;
+    right: 0;
+    top: 42px;
+    width: 340px;
+    max-height: 420px;
+    background: #FFF;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+    z-index: 120;
+}
+
+.zhi-notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    font-size: 13px;
+    font-weight: 600;
+    color: #1D1D1F;
+}
+
+.zhi-notification-list {
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.zhi-notification-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.zhi-notification-item:hover {
+    background: rgba(0, 113, 227, 0.05);
+}
+
+.zhi-notification-title {
+    font-size: 13px;
+    color: #1D1D1F;
+    margin-bottom: 2px;
+}
+
+.zhi-notification-snippet {
+    font-size: 12px;
+    color: #6B7280;
+    margin-top: 2px;
+    word-break: break-word;
+}
+
+.zhi-notification-time {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #9CA3AF;
+}
+
+.zhi-notification-empty {
+    padding: 20px;
+    text-align: center;
+    color: #9CA3AF;
+    font-size: 13px;
+}
+
+.zhi-notification-mark-btn {
+    border: none;
+    background: transparent;
+    color: #0071E3;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0;
+}
+
 /* 布局体系维持，拉宽间隙建立视觉喘息孔 */
 .zhi-main-layout {
     width: 1000px;
@@ -1657,6 +1777,17 @@ body {
 .mac-comment-head strong { font-size: 14px; color: #1D1D1F; }
 .mac-comment-time { font-size: 12px; color: #86868B; }
 .mac-comment-text { font-size: 15px; color: #424245; line-height: 1.6; }
+.mac-comment-item--focus { 
+    padding: 8px;
+    border-radius: 16px;
+    background: #EDF7FF;
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.25), 0 12px 30px rgba(0, 113, 227, 0.08);
+    scroll-margin-top: 96px;
+}
+
+.mac-comment-item--focus .mac-comment-body {
+    background: #FFFFFF;
+}
 @media (max-width: 1000px) { .mac-reader-outline { display: none; } }
 /* 骨架屏炫光动效体系：重制版 - 高速冷白金属拉丝切割掠过特效 */
 @keyframes mac-shimmer-sweep {

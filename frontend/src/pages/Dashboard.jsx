@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { macAlert, macConfirm } from '../components/MacModal';
 import TagPill from '../components/TagPill';
 import AuthModal from '../components/AuthModal';
+import NotificationBell from '../components/NotificationBell';
 import { markdownExcerpt } from '../utils/markdownText';
 
 const ArticleExcerpt = ({ content, maxLength = 180 }) => {
@@ -180,9 +181,10 @@ export default function Dashboard() {
                     </div>
 
                     <div className="zhi-actions" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                        {user ? (
+                    {user ? (
                             <>
                                 <button className="zhi-btn-primary" style={{ background: '#0071E3', color: '#FFFFFF', padding: '8px 20px', fontWeight: '700', border: 'none', boxShadow: '0 2px 10px rgba(0, 113, 227, 0.2)', whiteSpace: 'nowrap', flexShrink: 0 }} onClick={() => navigate(`/editor?category=${activeTab}`)}>创作</button>
+                                <NotificationBell user={user} />
                                 <div className="zhi-user-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <div style={{
                                         width: '32px', height: '32px', borderRadius: '50%', background: '#0071E3', 

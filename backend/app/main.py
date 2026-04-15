@@ -5,7 +5,7 @@ import os
 
 from . import models, database, auth, schemas
 from .database import engine
-from .routers import auth as auth_router, articles as articles_router, upload as upload_router, drafts as drafts_router
+from .routers import auth as auth_router, articles as articles_router, upload as upload_router, drafts as drafts_router, notifications as notifications_router
 
 # 创建所有数据库表
 models.Base.metadata.create_all(bind=engine)
@@ -21,6 +21,7 @@ app.include_router(auth_router.router)
 app.include_router(articles_router.router)
 app.include_router(upload_router.router)
 app.include_router(drafts_router.router)
+app.include_router(notifications_router.router)
 
 # 设置安全大后方的反向穿透，利用 /api/static/images 访问物理沙盒
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data/uploads")

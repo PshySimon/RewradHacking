@@ -84,6 +84,26 @@ class CommentOut(CommentBase):
     
     model_config = ConfigDict(from_attributes=True)
 
+
+class NotificationOut(BaseModel):
+    id: str
+    recipient_id: int
+    actor_id: int
+    actor_username: str = ""
+    actor_nickname: Optional[str] = None
+    actor_avatar: Optional[str] = None
+    article_id: str
+    comment_id: str
+    parent_comment_id: Optional[str] = None
+    event_type: str = "comment"
+    is_read: bool = False
+    created_at: str
+    target_path: str = ""
+    snippet: str = ""
+    article_title: str = ""
+
+    model_config = ConfigDict(from_attributes=True)
+
 class DraftCreate(BaseModel):
     category: CategoryEnum
     target_id: Optional[str] = None

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ErrorPage from './ErrorPage';
 import ThreadZone from '../components/ThreadZone';
 import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
+import NotificationBell from '../components/NotificationBell';
 import AuthModal from '../components/AuthModal';
 import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
@@ -44,6 +45,7 @@ const SolutionEditor = ({ onInstanceReady }) => {
 export default function CodePlayground() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     
     const [article, setArticle] = useState(null);
     const [user, setUser] = useState(null);
@@ -64,7 +66,7 @@ export default function CodePlayground() {
 
     const openAuth = (tab) => { setAuthModalTab(tab); setShowAuthModal(true); };
     const handleAuthSuccess = () => { setShowAuthModal(false); fetchMe(); window.location.reload(); };
-    
+
     // Pyodide Core
     const [leftTab, setLeftTab] = useState('description');
     const [solutions, setSolutions] = useState([]);
@@ -80,6 +82,16 @@ export default function CodePlayground() {
     const [pyodide, setPyodide] = useState(null);
     const [isPyodideLoading, setIsPyodideLoading] = useState(true);
     const [isExecuting, setIsExecuting] = useState(false);
+    const [focusCommentId, setFocusCommentId] = useState('');
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const commentId = params.get('comment_id') || '';
+        setFocusCommentId(commentId);
+        if (commentId) {
+            setLeftTab('discussion');
+        }
+    }, [location.search]);
     
     const [terminalOutput, setTerminalOutput] = useState("RewardHacking VM (Wasm Edge Sandbox) Ready.\nWelcome to Python VVM environment.\n\nadmin@local:~/workspace$ ");
     // ====== [代码独立静脉自动防抖重连器 & 题解草稿仓储库] ======
@@ -268,7 +280,7 @@ export default function CodePlayground() {
         fetchSolutionDrafts();
     }, [id, navigate]);
 
-        useEffect(() => {
+    useEffect(() => {
         if (leftTab === 'solutions') {
             if (solutions.length === 0) {
                 axios.get(`/api/articles/code/${id}/solutions`).then(res => setSolutions(res.data)).catch(console.error);
@@ -276,10 +288,6 @@ export default function CodePlayground() {
             if (viewingSolution) setViewingSolution(null);
         }
     }, [leftTab, id]);
-
-    if (isError) {
-        return <ErrorPage code={404} message="NON-EXECUTABLE ENTITY" />;
-    }
 
     // 2. 生命初始唤醒庞大的 Pyodide Wasm 机体 (极度延迟按需懒加载策略)
     useEffect(() => {
@@ -423,6 +431,10 @@ export default function CodePlayground() {
         }
     };
 
+    if (isError) {
+        return <ErrorPage code={404} message="NON-EXECUTABLE ENTITY" />;
+    }
+
     return (
         <div style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', background: '#FFFFFF' }}>
             {/* 顶层航天器导航舱复用标准 Header 质感 */}
@@ -458,20 +470,23 @@ export default function CodePlayground() {
                             </div>
                         )}
                         {user ? (
-                            <button 
-                                onClick={executeCode} 
-                                disabled={isPyodideLoading || isExecuting}
-                                className="zhi-btn-primary"
-                                style={{
-                                    background: isExecuting ? '#E5E7EB' : '#1D1D1F',
-                                    color: isExecuting ? '#86868B' : '#FFF',
-                                    border: 'none', borderRadius: '6px', padding: '6px 20px', fontSize: '13px',
-                                    fontWeight: '600', cursor: (isPyodideLoading || isExecuting) ? 'not-allowed' : 'pointer',
-                                    transition: 'all 0.2s', boxShadow: 'none'
-                                }}
-                            >
-                                {isPyodideLoading ? 'Wasm 启动中...' : isExecuting ? '引力场解析中...' : '▶ 执行沙箱 (Run)'}
-                            </button>
+                            <>
+                                <NotificationBell user={user} />
+                                <button 
+                                    onClick={executeCode} 
+                                    disabled={isPyodideLoading || isExecuting}
+                                    className="zhi-btn-primary"
+                                    style={{
+                                        background: isExecuting ? '#E5E7EB' : '#1D1D1F',
+                                        color: isExecuting ? '#86868B' : '#FFF',
+                                        border: 'none', borderRadius: '6px', padding: '6px 20px', fontSize: '13px',
+                                        fontWeight: '600', cursor: (isPyodideLoading || isExecuting) ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s', boxShadow: 'none'
+                                    }}
+                                >
+                                    {isPyodideLoading ? 'Wasm 启动中...' : isExecuting ? '引力场解析中...' : '▶ 执行沙箱 (Run)'}
+                                </button>
+                            </>
                         ) : (
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                 <button onClick={() => openAuth('login')} style={{ padding: '6px 16px', borderRadius: '16px', border: '1px solid #0071E3', background: 'transparent', color: '#0071E3', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}>登录</button>
@@ -601,6 +616,7 @@ export default function CodePlayground() {
                                 articleId={id} 
                                 articleAuthorId={article.author_id} 
                                 onCommentAdded={() => setArticle({...article, comments_count: article.comments_count + 1})}
+                                focusCommentId={focusCommentId}
                             />
                         )}
                     </div>

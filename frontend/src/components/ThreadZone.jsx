@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
 import { buildVditorEditorOptions, buildVditorRenderOptions } from '../utils/vditorOptions';
@@ -65,13 +65,18 @@ const EmbeddedCommentEditor = ({ onInstanceReady }) => {
 };
 
 // CommentNode - 单体评论节点
-const CommentNode = ({ c, isChild, articleAuthorId, handleLike, setReplyingToId, replyingToId, handleCreateComment, setCommentVditor }) => {
+const CommentNode = ({ c, isChild, articleAuthorId, handleLike, setReplyingToId, replyingToId, handleCreateComment, setCommentVditor, focusCommentId }) => {
     const isAuthor = articleAuthorId === c.author_id;
     const isAdmin = c.author_role === 'admin';
     const showEditor = replyingToId === c.id;
+    const isFocus = focusCommentId === c.id;
 
     return (
-        <div className="mac-comment-item" style={{ marginBottom: isChild ? '8px' : '16px' }}>
+        <div
+            id={`comment-${c.id}`}
+            className={`mac-comment-item ${isFocus ? 'mac-comment-item--focus' : ''}`}
+            style={{ marginBottom: isChild ? '8px' : '16px' }}
+        >
             <div className="mac-comment-avatar">{c.author_avatar || (c.author_nickname || c.author_username || 'U')[0].toUpperCase()}</div>
             <div className="mac-comment-body" style={{ flexGrow: 1, background: isChild ? '#FFFFFF' : '#FAFAFC', padding: '12px 14px', borderRadius: '0 16px 16px 16px', boxShadow: isChild ? '0 1px 3px rgba(0,0,0,0.06)' : 'none' }}>
                 <div className="mac-comment-head" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -116,8 +121,15 @@ const CommentNode = ({ c, isChild, articleAuthorId, handleLike, setReplyingToId,
 };
 
 // CommentThread - 带有树状计算的一条讨论线
-const CommentThread = ({ thread, articleAuthorId, handleLike, setReplyingToId, replyingToId, handleCreateComment, setCommentVditor }) => {
+const CommentThread = ({ thread, articleAuthorId, handleLike, setReplyingToId, replyingToId, handleCreateComment, setCommentVditor, shouldExpand, focusCommentId }) => {
     const [expanded, setExpanded] = useState(false);
+
+    useEffect(() => {
+        if (shouldExpand) {
+            setExpanded(true);
+        }
+    }, [shouldExpand]);
+
     const displayedChildren = expanded ? thread.children : thread.children.slice(0, 2);
 
     return (
@@ -130,7 +142,8 @@ const CommentThread = ({ thread, articleAuthorId, handleLike, setReplyingToId, r
                 setReplyingToId={setReplyingToId} 
                 replyingToId={replyingToId} 
                 handleCreateComment={handleCreateComment}
-                setCommentVditor={setCommentVditor} 
+                setCommentVditor={setCommentVditor}
+                focusCommentId={focusCommentId}
             />
             {thread.children.length > 0 && (
                 <div className="mac-comment-children-zone" style={{ marginLeft: '48px', padding: '12px 14px', borderRadius: '12px', background: '#F9F9FB', border: '1px solid rgba(0,0,0,0.03)' }}>
@@ -144,7 +157,8 @@ const CommentThread = ({ thread, articleAuthorId, handleLike, setReplyingToId, r
                             setReplyingToId={setReplyingToId} 
                             replyingToId={replyingToId} 
                             handleCreateComment={handleCreateComment}
-                            setCommentVditor={setCommentVditor} 
+                            setCommentVditor={setCommentVditor}
+                            focusCommentId={focusCommentId}
                         />
                     ))}
                     {thread.children.length > 2 && !expanded && (
@@ -161,10 +175,11 @@ const CommentThread = ({ thread, articleAuthorId, handleLike, setReplyingToId, r
     );
 };
 
-export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded }) {
+export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded, focusCommentId }) {
     const [comments, setComments] = useState([]);
     const [replyingToId, setReplyingToId] = useState(null);
     const [commentVditor, setCommentVditor] = useState(null);
+    const scrollTimerRef = useRef(null);
 
     // 进行防抖以确保当评论完全拉取后再执行映射
     useEffect(() => {
@@ -180,7 +195,37 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded 
         fetchComments();
     }, [articleId]);
 
-    const threads = React.useMemo(() => {
+    useEffect(() => {
+        if (!focusCommentId || comments.length === 0) {
+            return;
+        }
+
+        let tries = 0;
+        const maxTries = 10;
+
+        const tryScroll = () => {
+            const targetNode = document.getElementById(`comment-${focusCommentId}`);
+            if (targetNode) {
+                targetNode.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                return;
+            }
+
+            tries += 1;
+            if (tries < maxTries) {
+                scrollTimerRef.current = setTimeout(tryScroll, 180);
+            }
+        };
+
+        tryScroll();
+
+        return () => {
+            if (scrollTimerRef.current) {
+                clearTimeout(scrollTimerRef.current);
+            }
+        };
+    }, [focusCommentId, comments]);
+
+    const threads = useMemo(() => {
         const map = {};
         const cdict = {};
         comments.forEach(c => cdict[c.id] = c);
@@ -206,9 +251,12 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded 
         });
         return Object.values(map).map(thread => {
             thread.children.sort((a, b) => b.likes_count - a.likes_count);
+            thread.shouldExpand = Boolean(
+                focusCommentId && (thread.id === focusCommentId || thread.children.some(child => child.id === focusCommentId))
+            );
             return thread;
         });
-    }, [comments]);
+    }, [comments, focusCommentId]);
 
     const handleLikeComment = async (commentId, isLiked) => {
         try {
@@ -278,6 +326,8 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded 
                             replyingToId={replyingToId}
                             handleCreateComment={handleCreateComment}
                             setCommentVditor={setCommentVditor}
+                            shouldExpand={Boolean(thread.shouldExpand)}
+                            focusCommentId={focusCommentId}
                         />
                     ))
                 )}

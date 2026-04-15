@@ -260,6 +260,15 @@ def create_comment(
     article = db.query(models.Article).filter(models.Article.id == article_id).first()
     if not article:
          raise HTTPException(status_code=404, detail="底层文章实体已遗失。")
+
+    parent_comment = None
+    if comment_in.parent_id:
+        parent_comment = db.query(models.Comment).filter(
+            models.Comment.id == comment_in.parent_id,
+            models.Comment.article_id == article_id,
+        ).first()
+        if not parent_comment:
+            raise HTTPException(status_code=400, detail="回复目标不存在。")
     
     new_comment = models.Comment(
         content=comment_in.content,
@@ -268,10 +277,42 @@ def create_comment(
         parent_id=comment_in.parent_id,
         likes_count=0
     )
+    db.add(new_comment)
+    db.flush()
     # 同步双写统计表
     article.comments_count += 1
-    
-    db.add(new_comment)
+
+    target_path = f"/article/{article_id}#comment-{new_comment.id}"
+    if article.category == models.CategoryEnum.code:
+        target_path = f"/codeplay/{article_id}?comment_id={new_comment.id}"
+
+    notified_recipient_ids = set()
+    if current_user.id != article.author_id:
+        notified_recipient_ids.add(article.author_id)
+        db.add(models.Notification(
+            recipient_id=article.author_id,
+            actor_id=current_user.id,
+            article_id=article_id,
+            comment_id=new_comment.id,
+            event_type="article_comment",
+            target_path=target_path,
+            snippet=(comment_in.content or "")[0:120],
+        ))
+
+    if parent_comment and parent_comment.author_id != current_user.id:
+        if parent_comment.author_id not in notified_recipient_ids:
+            notified_recipient_ids.add(parent_comment.author_id)
+        db.add(models.Notification(
+            recipient_id=parent_comment.author_id,
+            actor_id=current_user.id,
+            article_id=article_id,
+            comment_id=new_comment.id,
+            parent_comment_id=parent_comment.id,
+            event_type="comment_reply",
+            target_path=target_path,
+            snippet=(comment_in.content or "")[0:120],
+        ))
+
     db.commit()
     db.refresh(new_comment)
     sync_image_references(

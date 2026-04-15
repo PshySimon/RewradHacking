@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ErrorPage from './ErrorPage';
 import Vditor from 'vditor';
@@ -7,6 +7,7 @@ import 'vditor/dist/index.css';
 import TagPill from '../components/TagPill';
 import { macAlert, macConfirm } from '../components/MacModal';
 import ThreadZone from '../components/ThreadZone';
+import NotificationBell from '../components/NotificationBell';
 import AuthModal from '../components/AuthModal';
 import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
 import { buildVditorRenderOptions } from '../utils/vditorOptions';
@@ -40,6 +41,7 @@ const ArticleSkeleton = () => (
 export default function ArticleDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [article, setArticle] = useState(null);
     const [user, setUser] = useState(null);
     
@@ -47,6 +49,7 @@ export default function ArticleDetail() {
     const [outline, setOutline] = useState([]);
     const [isOutlineVisible, setIsOutlineVisible] = useState(true);
     const [isMainContentReady, setIsMainContentReady] = useState(false);
+    const [focusCommentId, setFocusCommentId] = useState('');
     
     // 登录弹窗
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -98,7 +101,7 @@ export default function ArticleDetail() {
         const out = [];
 
         headings.forEach((heading, index) => {
-            const title = (heading.textContent || '').trim();
+            const title = cleanupOutlineTitle(heading);
             if (!title) {
                 return;
             }
@@ -121,6 +124,32 @@ export default function ArticleDetail() {
 
         setOutline(out);
     };
+
+    const cleanupOutlineTitle = (value) => {
+        const heading = value;
+        if (!heading || !heading.textContent) {
+            return '';
+        }
+
+        const titleNode = heading.cloneNode(true);
+        titleNode.querySelectorAll('.vditor-ir__marker').forEach((marker) => marker.remove());
+        let title = (titleNode.textContent || '').trim();
+        title = title.replace(/\u00A0/g, ' ');
+        title = title.replace(/&nbsp;/g, ' ');
+        title = title.replace(/[\u200B-\u200D\uFEFF]/g, '');
+        title = title.replace(/\s{2,}/g, ' ');
+        return title.trim();
+    };
+
+    useEffect(() => {
+        const hash = (location.hash || '').trim();
+        const match = hash.match(/^#comment-([\w-]+)$/);
+        if (match && match[1]) {
+            setFocusCommentId(match[1]);
+            return;
+        }
+        setFocusCommentId('');
+    }, [location.hash]);
 
     useEffect(() => {
         fetchMe();
@@ -232,6 +261,7 @@ export default function ArticleDetail() {
                         </div>
                     </nav>
                     <div className="zhi-actions">
+                        <NotificationBell user={user} />
                         {hasAdminRights && (
                             <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginRight: '24px' }}>
                                 <span 
@@ -360,6 +390,7 @@ export default function ArticleDetail() {
                             articleId={id} 
                             articleAuthorId={article.author_id} 
                             onCommentAdded={() => setArticle({...article, comments_count: article.comments_count + 1})}
+                            focusCommentId={focusCommentId}
                         />
                     )}
                 </article>

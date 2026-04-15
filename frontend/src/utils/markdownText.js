@@ -1,11 +1,32 @@
-import { normalizeVditorMarkdown } from './vditorMarkdown';
-import { buildVditorRenderOptions } from './vditorOptions';
+import { normalizeVditorMarkdown } from './vditorMarkdown.js';
+import { buildVditorRenderOptions } from './vditorOptions.js';
 
 const MAX_SAFE_EXCERPT_LENGTH = 180;
 
-const stripCodeBlocks = (value = '') => value.replace(/```[\s\S]*?```/g, ' ');
+const isFenceLine = (line = '') => /^\s*```/u.test(line);
 
-const stripInlineCode = (value = '') => value.replace(/`([^`]+)`/g, '$1');
+const stripCodeBlocks = (value = '') => {
+    const lines = value.split('\n');
+    const out = [];
+    let inFence = false;
+
+    for (const line of lines) {
+        if (isFenceLine(line)) {
+            inFence = !inFence;
+            continue;
+        }
+
+        if (inFence) {
+            continue;
+        }
+
+        out.push(line);
+    }
+
+    return out.join('\n');
+};
+
+const stripInlineCode = (value = '') => value.replace(/`[^`\n]*`/g, '');
 
 const stripLinkAndImage = (value = '') => {
     let text = value.replace(/!\[[^\]]*\]\([^)]*\)/g, '');
@@ -41,8 +62,17 @@ const stripCalloutFence = (value = '') => {
 };
 
 const stripHtml = (value = '') => value
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/<span class="vditor-ir__marker[^"]*"[^>]*>/gi, ' ');
+    .replace(/<span[^>]*class="[^"]*\bvditor-ir__marker\b[^"]*"[^>]*>/gi, ' ')
+    .replace(/<\/span>/gi, '')
+    .replace(/<[^>]*>/g, ' ');
+
+const stripInlineEmphasis = (value = '') => {
+    let text = value;
+    text = text.replace(/(\*\*|__)([^*\n]*?)\1/g, '$2');
+    text = text.replace(/(\*|_)([^*\n]*?)\1/g, '$2');
+    text = text.replace(/\*{2,}|_{2,}/g, '');
+    return text;
+};
 
 const normalizeWhitespace = (value = '') => {
     let text = value
@@ -72,12 +102,14 @@ const stripMarkdown = (value = '') => {
     text = stripCalloutFence(text);
     text = stripCodeBlocks(text);
     text = stripInlineCode(text);
+    text = stripInlineEmphasis(text);
     text = stripLinkAndImage(text);
     text = stripBlockquote(text);
     text = stripListMarker(text);
     text = stripHeadingMarker(text);
     text = stripInlineDelimiters(text);
     text = stripHtml(text);
+    text = decodeHtmlEntities(text);
     return normalizeWhitespace(text);
 };
 
@@ -94,6 +126,9 @@ const htmlToPlainText = async (html = '') => {
     try {
         const parser = new window.DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
+        doc.querySelectorAll('pre').forEach((node) => node.remove());
+        doc.querySelectorAll('.vditor-ir__marker').forEach((node) => node.remove());
+        doc.querySelectorAll('script, style, noscript').forEach((node) => node.remove());
         return normalizeWhitespace(doc.body?.textContent || '');
     } catch {
         return toPlainText(decodeHtmlEntities(html));
@@ -115,6 +150,8 @@ export const markdownToPlainText = async (value = '', options = {}) => {
 
     return stripMarkdown(normalizedText);
 };
+
+export { stripMarkdown };
 
 export const markdownExcerpt = async (value = '', maxLength = MAX_SAFE_EXCERPT_LENGTH) => {
     const plainText = await markdownToPlainText(value);
