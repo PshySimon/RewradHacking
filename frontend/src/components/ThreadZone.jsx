@@ -4,6 +4,11 @@ import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from 
 import { buildVditorEditorOptions, buildVditorRenderOptions } from '../utils/vditorOptions';
 const Vditor = window.Vditor;
 
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 // 局部的评论区阅读引擎（轻量化：用 md2html 纯转换代替重型 preview）
 const CommentPreview = ({ content }) => {
     const [html, setHtml] = React.useState('');
@@ -265,8 +270,15 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
                 likes_count: isLiked ? Math.max(0, c.likes_count - 1) : c.likes_count + 1,
                 is_liked: !isLiked
             } : c));
-            await axios.post(`/api/articles/${articleId}/comments/${commentId}/like`);
+            await axios.post(
+                `/api/articles/${articleId}/comments/${commentId}/like`,
+                null,
+                { headers: getAuthHeaders() }
+            );
         } catch (error) {
+            if (error.response?.status === 401) {
+                alert('请先登录后点赞');
+            }
             console.error("点赞抛网失败", error);
         }
     };
@@ -276,11 +288,16 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
         const value = commentVditor.getValue();
         if (!value.trim()) return;
         try {
+            const headers = getAuthHeaders();
+            if (!headers.Authorization) {
+                alert('请先登录后发表评论。');
+                return;
+            }
             const res = await axios.post(`/api/articles/${articleId}/comments`, {
                 content: value,
                 article_id: articleId,
                 parent_id: parentId
-            });
+            }, { headers });
             setComments([...comments, res.data]);
             commentVditor.setValue('');
             setReplyingToId(null);
@@ -288,6 +305,10 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
                 onCommentAdded();
             }
         } catch (error) {
+            if (error.response?.status === 401) {
+                alert('登录态无效，请重新登录后再发表评论。');
+                return;
+            }
             console.error("发表评论被拦截", error);
         }
     };
