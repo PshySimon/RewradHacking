@@ -85,7 +85,7 @@ export default function ArticleDetail() {
     const [annotations, setAnnotations] = useState([]);
     const [activeComposeLine, setActiveComposeLine] = useState(null);
     const [activeComposeText, setActiveComposeText] = useState('');
-    const [composerPos, setComposerPos] = useState({ x: 0, y: 0, lineIndex: null, lineText: '' });
+    const [composerPos, setComposerPos] = useState({ x: 0, y: 0, lineIndex: null, lineText: '', popupWidth: 320, popupHeight: 360 });
     const annotationComposerRef = useRef(null);
     const annotationTextAreaRef = useRef(null);
     const articlePreviewRef = useRef(null);
@@ -127,6 +127,38 @@ export default function ArticleDetail() {
             console.error("加载文章失败：", error);
             if (error.response?.status === 404) navigate('/');
         }
+    };
+
+    const clampComposerPosition = (rect) => {
+        const margin = 12;
+        const popupWidth = Math.min(360, Math.max(260, window.innerWidth - 24));
+        const maxAvailableHeight = window.innerHeight - margin * 2;
+        const preferredHeight = Math.min(360, maxAvailableHeight);
+        const contentBottomSpace = window.innerHeight - margin - rect.top;
+        const popupHeight = Math.max(220, Math.min(preferredHeight, contentBottomSpace));
+
+        let x = rect.right + 10;
+        if (x + popupWidth > window.innerWidth - margin) {
+            x = rect.left - popupWidth - 10;
+        }
+        if (x < margin) {
+            x = margin;
+        }
+
+        let y = rect.top;
+        if (y + popupHeight > window.innerHeight - margin) {
+            y = window.innerHeight - popupHeight - margin;
+        }
+        if (y < margin) {
+            y = margin;
+        }
+
+        return {
+            x: Math.floor(x),
+            y: Math.floor(y),
+            popupWidth,
+            popupHeight: Math.floor(popupHeight),
+        };
     };
 
     const fetchAnnotations = async () => {
@@ -213,19 +245,21 @@ export default function ArticleDetail() {
             const normalizedText = text.slice(0, 180);
             marker.dataset.annotationLine = String(lineIndex);
             marker.dataset.annotationText = normalizedText;
-            const hasAnnotation = annotationLineMap[lineIndex] > 0;
-            marker.textContent = hasAnnotation ? `💬${annotationLineMap[lineIndex]}` : '＋';
-            marker.title = `为第 ${lineIndex} 行添加批注`;
+            marker.textContent = '';
+            marker.title = `第 ${lineIndex} 行添加批注`;
             marker.onclick = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
 
                 const rect = block.getBoundingClientRect();
+                const { x, y, popupWidth, popupHeight } = clampComposerPosition(rect);
                 setComposerPos({
-                    x: rect.right + window.scrollX + 10,
-                    y: rect.top + window.scrollY,
+                    x,
+                    y,
                     lineIndex,
                     lineText: normalizedText,
+                    popupWidth,
+                    popupHeight,
                 });
                 setActiveComposeLine(lineIndex);
             };
@@ -297,7 +331,7 @@ export default function ArticleDetail() {
     const closeAnnotationComposer = () => {
         setActiveComposeLine(null);
         setActiveComposeText('');
-        setComposerPos({ x: 0, y: 0, lineIndex: null, lineText: '' });
+        setComposerPos({ x: 0, y: 0, lineIndex: null, lineText: '', popupWidth: 320, popupHeight: 360 });
     };
 
     const handleCreateAnnotation = async () => {
@@ -703,7 +737,7 @@ export default function ArticleDetail() {
                             <div
                                 ref={annotationComposerRef}
                                 className="mac-annotation-composer"
-                                style={{ left: composerPos.x, top: composerPos.y }}
+                                style={{ left: composerPos.x, top: composerPos.y, width: composerPos.popupWidth, maxHeight: composerPos.popupHeight }}
                             >
                                 <div className="mac-annotation-composer-title">
                                     <span>第 {composerPos.lineIndex} 行批注</span>
@@ -754,7 +788,7 @@ export default function ArticleDetail() {
                     <div className="mac-annotations-zone">
                         <h3>批注</h3>
                         {annotations.length === 0 ? (
-                            <div className="mac-annotation-empty">暂无批注，点开正文右侧按钮可发起批注</div>
+                            <div className="mac-annotation-empty">暂无批注，移动到正文右侧区域点击可发起批注</div>
                         ) : (
                             <div className="mac-annotations-list">
                                 {annotations.map((annotation) => (

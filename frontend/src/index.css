@@ -1773,37 +1773,35 @@ body {
 }
 .mac-line-annotated {
     position: relative;
-    padding-right: 44px;
 }
 .mac-line-annotation-btn {
     position: absolute;
-    top: 4px;
-    right: 8px;
-    width: 28px;
-    height: 28px;
-    border: 1px solid rgba(0, 113, 227, 0.25);
-    border-radius: 14px;
-    background: #FFFFFF;
-    color: #005FCC;
-    font-size: 11px;
-    line-height: 26px;
-    text-align: center;
-    cursor: pointer;
+    top: 0;
+    right: 0;
+    width: 44px;
+    height: 100%;
+    border: none;
+    background: transparent;
     padding: 0;
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.08);
+    margin: 0;
+    color: transparent;
+    font-size: 1px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 0;
+    box-sizing: border-box;
+    outline: none;
+    box-shadow: none;
+    -webkit-appearance: none;
+    appearance: none;
     z-index: 2;
 }
 .mac-line-annotation-btn:hover {
-    border-color: #0071E3;
-    background: #EAF2FF;
-}
-.mac-line-annotation-btn:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.25);
+    cursor: pointer;
 }
 
 .mac-annotation-composer {
-    position: absolute;
+    position: fixed;
     z-index: 300;
     width: 320px;
     background: #FFFFFF;
@@ -1814,6 +1812,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    max-width: calc(100vw - 24px);
+    max-height: 360px;
+    overflow: auto;
 }
 .mac-annotation-composer-title {
     display: flex;
