@@ -163,7 +163,7 @@ export default function NotificationBell({ user }) {
                 type="button"
                 className="zhi-notification-btn"
                 onClick={handleOpen}
-                title="评论通知"
+                title="通知"
             >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -175,7 +175,7 @@ export default function NotificationBell({ user }) {
             {isOpen ? (
                 <div className="zhi-notification-popover">
                     <div className="zhi-notification-header">
-                        <span>评论通知</span>
+                        <span>通知</span>
                         {unreadCount > 0 && (
                             <button
                                 type="button"
