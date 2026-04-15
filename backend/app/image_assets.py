@@ -116,12 +116,13 @@ def sync_image_references(
         models.ImageReference.owner_id == str(owner_id),
         models.ImageReference.field == field,
     ).all()
-    affected_image_ids = {ref.image_id for ref in existing_refs}
-    for ref in existing_refs:
-        db.delete(ref)
+    existing_image_ids = {ref.image_id for ref in existing_refs}
+    affected_image_ids = set(existing_image_ids)
 
     filenames = extract_local_image_filenames(content)
     if not filenames:
+        for ref in existing_refs:
+            db.delete(ref)
         deleted = _delete_unreferenced_assets(db, image_ids=affected_image_ids, upload_dir=upload_dir)
         db.commit()
         return deleted
@@ -137,10 +138,17 @@ def sync_image_references(
             if asset:
                 assets_by_filename[filename] = asset
 
-    for asset in assets_by_filename.values():
-        affected_image_ids.add(asset.id)
+    desired_image_ids = {asset.id for asset in assets_by_filename.values()}
+    affected_image_ids.update(desired_image_ids)
+    for ref in existing_refs:
+        if ref.image_id not in desired_image_ids:
+            db.delete(ref)
+
+    for image_id in desired_image_ids:
+        if image_id in existing_image_ids:
+            continue
         db.add(models.ImageReference(
-            image_id=asset.id,
+            image_id=image_id,
             owner_type=owner_type,
             owner_id=str(owner_id),
             field=field,

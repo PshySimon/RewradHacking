@@ -117,6 +117,37 @@ class ImageAssetsTest(unittest.TestCase):
         self.assertEqual(len(refs), 1)
         self.assertEqual(refs[0].image_id, image_b.id)
 
+    def test_sync_image_references_is_idempotent_for_existing_references(self):
+        image_a = store_image_bytes(
+            self.db,
+            upload_dir=self.upload_dir,
+            content=b"shared-content",
+            original_filename="a.png",
+            content_type="image/png",
+            uploader_id=1,
+        )
+
+        sync_image_references(
+            self.db,
+            owner_type="article",
+            owner_id="A1",
+            field="content",
+            content=f"![]({image_a.url})",
+            upload_dir=self.upload_dir,
+        )
+        sync_image_references(
+            self.db,
+            owner_type="article",
+            owner_id="A1",
+            field="content",
+            content=f"![]({image_a.url})",
+            upload_dir=self.upload_dir,
+        )
+
+        refs = self.db.query(models.ImageReference).all()
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0].image_id, image_a.id)
+
     def test_clear_image_references_deletes_file_when_last_reference_is_removed(self):
         image = store_image_bytes(
             self.db,
