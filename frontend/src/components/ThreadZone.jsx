@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
-import { buildVditorEditorOptions, buildVditorRenderOptions } from '../utils/vditorOptions';
+import { buildVditorRenderOptions } from '../utils/vditorOptions';
+import { buildCommentEditorOptions } from '../utils/commentEditorOptions';
 const Vditor = window.Vditor;
 
 const getAuthHeaders = () => {
@@ -41,26 +42,10 @@ const CommentPreview = ({ content }) => {
 // 局部的评论区富文本输入引擎
 const EmbeddedCommentEditor = ({ onInstanceReady }) => {
     React.useEffect(() => {
-        const vditor = new Vditor('embedded-comment-editor', buildVditorEditorOptions({
-            height: 120,
-            mode: 'ir',
-            placeholder: '输入评论...',
-            cache: { enable: false },
-            hint: {
-                emoji: {
-                    "😂": "😂", "🤣": "🤣", "😅": "😅", "😭": "😭", "🥺": "🥺", "🥰": "🥰", "😎": "😎", 
-                    "🤔": "🤔", "👍": "👍", "👏": "👏", "🙏": "🙏", "🚀": "🚀", "🔥": "🔥", "🎉": "🎉", 
-                    "💯": "💯", "❤️": "❤️", "✨": "✨", "💡": "💡", "👀": "👀", "🐶": "🐶"
-                }
-            },
-            toolbar: [
-                'emoji', 'bold', 'italic', 'link', '|',
-                'list', 'ordered-list', '|',
-                'quote', 'inline-code', 'code'
-            ],
+        const vditor = new Vditor('embedded-comment-editor', buildCommentEditorOptions({
             after: () => {
                 onInstanceReady(vditor);
-            }
+            },
         }));
         return () => {
             try { vditor.destroy(); } catch (e) {}
