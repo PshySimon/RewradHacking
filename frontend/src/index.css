@@ -923,6 +923,11 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !important;
 }
 
+.mac-vditor-override .vditor-reset p {
+    margin-top: 0 !important;
+    margin-bottom: 6px !important;
+}
+
 .mac-vditor-override .vditor-reset h1,
 .mac-vditor-override .vditor-reset h2,
 .mac-vditor-override .vditor-reset h3 {
@@ -1842,6 +1847,9 @@ body {
     pointer-events: none;
     z-index: 40;
 }
+.mac-annotation-hotzone-overlay--hidden {
+    opacity: 0;
+}
 .mac-line-annotated {
     position: relative;
 }
@@ -1870,6 +1878,9 @@ body {
 .mac-line-annotation-btn:hover {
     cursor: pointer;
     background: linear-gradient(90deg, rgba(0, 113, 227, 0) 0%, rgba(0, 113, 227, 0.06) 100%);
+}
+.mac-line-annotation-btn--fallback:hover {
+    background: transparent;
 }
 .mac-line-annotation-btn--has-preview {
     background: linear-gradient(90deg, rgba(0, 113, 227, 0) 0%, rgba(0, 113, 227, 0.04) 100%);

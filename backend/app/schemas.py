@@ -118,6 +118,10 @@ class AnnotationCreate(BaseModel):
     content: str
     line_index: int
     line_text: Optional[str] = ""
+    block_anchor: Optional[str] = None
+    block_text_start: Optional[int] = None
+    block_text_end: Optional[int] = None
+    quote_text: Optional[str] = ""
     parent_id: Optional[str] = None
 
 
@@ -129,6 +133,10 @@ class AnnotationOut(BaseModel):
     recipient_id: Optional[int] = None
     line_index: int
     line_text: str
+    block_anchor: Optional[str] = None
+    block_text_start: Optional[int] = None
+    block_text_end: Optional[int] = None
+    quote_text: str = ""
     content: str
     created_at: str
     author_username: str = ""

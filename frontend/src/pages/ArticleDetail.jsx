@@ -20,7 +20,13 @@ import {
     buildAnnotationPreview,
     buildAnnotationQuotePreview,
     clampAnnotationComposerPosition,
+    createVisualLineCacheKey,
+    findNearestMeasuredLine,
     getAnnotationHotzoneLayout,
+    materializeMeasuredLineRect,
+    measureVisualLines,
+    resolveAnnotationAnchor,
+    reuseCachedVisualLines,
 } from '../utils/annotationComposer';
 
 const noop = () => {};
@@ -43,6 +49,16 @@ const logAnnotationReplyDebug = (label, payload) => {
         console.debug('[AnnotationReplyDebugJSON]', label, JSON.stringify(safePayload));
     } catch (error) {
         console.debug('[AnnotationReplyDebugJSON]', label, 'serialize-failed', String(error));
+    }
+};
+
+const logAnnotationPerfDebug = (label, payload) => {
+    const safePayload = { label, ...payload };
+    console.debug('[AnnotationPerfDebug]', safePayload);
+    try {
+        console.debug('[AnnotationPerfDebugJSON]', label, JSON.stringify(safePayload));
+    } catch (error) {
+        console.debug('[AnnotationPerfDebugJSON]', label, 'serialize-failed', String(error));
     }
 };
 
@@ -220,10 +236,30 @@ export default function ArticleDetail() {
     const [activeReplyParentId, setActiveReplyParentId] = useState('');
     const [isExplicitReplyTarget, setIsExplicitReplyTarget] = useState(false);
     const [annotationComposerMode, setAnnotationComposerMode] = useState('create');
-    const [composerPos, setComposerPos] = useState({ x: 0, y: 0, lineIndex: null, lineText: '', popupWidth: 320, popupHeight: 360 });
+    const [composerPos, setComposerPos] = useState({
+        x: 0,
+        y: 0,
+        lineIndex: null,
+        lineKey: '',
+        lineText: '',
+        blockAnchor: '',
+        textStart: null,
+        textEnd: null,
+        popupWidth: 320,
+        popupHeight: 360,
+    });
     const annotationComposerRef = useRef(null);
     const articlePreviewRef = useRef(null);
     const annotationHotzoneRafRef = useRef(0);
+    const visualAnnotationLinesRef = useRef([]);
+    const visualLineCacheRef = useRef(new Map());
+    const annotationBlockRecordsRef = useRef([]);
+    const pendingMeasureBlocksRef = useRef(new Set());
+    const blockObserverRef = useRef(null);
+    const blockMeasureRafRef = useRef(0);
+    const annotationHotzoneScrollTimeoutRef = useRef(0);
+    const annotationPerfDebugCountRef = useRef(0);
+    const annotationHotzoneScrollingRef = useRef(false);
     
     // 登录弹窗
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -285,10 +321,24 @@ export default function ArticleDetail() {
                         recipient_nickname: item.recipient_nickname || override?.recipient_nickname || null,
                         recipient_avatar: item.recipient_avatar || override?.recipient_avatar || null,
                         line_text: normalizeAnnotationText(item.line_text || ''),
+                        block_anchor: item.block_anchor || '',
+                        block_text_start: Number.isFinite(item.block_text_start) ? item.block_text_start : null,
+                        block_text_end: Number.isFinite(item.block_text_end) ? item.block_text_end : null,
+                        quote_text: normalizeAnnotationText(item.quote_text || item.line_text || ''),
                         content: normalizeAnnotationText(item.content || ''),
                     };
                 })
                 .sort((a, b) => {
+                    const aBlock = String(a.block_anchor || '');
+                    const bBlock = String(b.block_anchor || '');
+                    if (aBlock !== bBlock) {
+                        return aBlock.localeCompare(bBlock);
+                    }
+                    const aStart = Number(a.block_text_start ?? Number.MAX_SAFE_INTEGER);
+                    const bStart = Number(b.block_text_start ?? Number.MAX_SAFE_INTEGER);
+                    if (aStart !== bStart) {
+                        return aStart - bStart;
+                    }
                     if (a.line_index !== b.line_index) {
                         return Number(a.line_index || 0) - Number(b.line_index || 0);
                     }
@@ -302,6 +352,9 @@ export default function ArticleDetail() {
                     recipient_id: item.recipient_id || null,
                     recipient_username: item.recipient_username || '',
                     line_index: item.line_index,
+                    block_anchor: item.block_anchor || '',
+                    block_text_start: item.block_text_start ?? null,
+                    block_text_end: item.block_text_end ?? null,
                     content: item.content,
                 })),
             });
@@ -319,42 +372,36 @@ export default function ArticleDetail() {
         document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID)?.remove();
     };
 
-    const buildLineAnnotationAnchors = () => {
+    const disconnectAnnotationBlockObserver = () => {
+        blockObserverRef.current?.disconnect();
+        blockObserverRef.current = null;
+    };
+
+    const syncMeasuredLinesForBlock = (blockAnchor, lines) => {
+        const retained = visualAnnotationLinesRef.current.filter((line) => line.blockAnchor !== blockAnchor);
+        visualAnnotationLinesRef.current = [...retained, ...lines].sort((a, b) => {
+            const aBlock = String(a.blockAnchor || '');
+            const bBlock = String(b.blockAnchor || '');
+            if (aBlock !== bBlock) {
+                return aBlock.localeCompare(bBlock);
+            }
+            return Number(a.textStart || 0) - Number(b.textStart || 0);
+        });
+    };
+
+    const buildAnnotationBlockRegistry = () => {
         const root = articlePreviewRef.current;
         if (!root) {
+            annotationBlockRecordsRef.current = [];
+            visualAnnotationLinesRef.current = [];
             removeAnnotationHotzoneOverlay();
             return;
         }
 
-        let overlay = document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID);
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = ANNOTATION_HOTZONE_OVERLAY_ID;
-            overlay.className = 'mac-annotation-hotzone-overlay';
-            document.body.appendChild(overlay);
-        }
-
-        const annotationLineMap = {};
-        const annotationLineBuckets = {};
-        annotations.forEach((annotation) => {
-            if (!annotation || annotation.line_index < 1) {
-                return;
-            }
-
-            if (!annotationLineMap[annotation.line_index]) {
-                annotationLineMap[annotation.line_index] = 0;
-            }
-            annotationLineMap[annotation.line_index] += 1;
-            if (!annotationLineBuckets[annotation.line_index]) {
-                annotationLineBuckets[annotation.line_index] = [];
-            }
-            annotationLineBuckets[annotation.line_index].push(annotation);
-        });
-
         const blocks = Array.from(root.children);
-        let lineIndex = 0;
-        const seenButtons = new Set();
-        const rootRect = root.getBoundingClientRect();
+        let legacyLineIndex = 0;
+        const nextRecords = [];
+        const seenAnchors = new Set();
         blocks.forEach((block) => {
             if (!(block instanceof HTMLElement)) {
                 return;
@@ -363,16 +410,272 @@ export default function ArticleDetail() {
             const text = getLineTextFromNode(block);
             if (!text) {
                 block.removeAttribute('data-annotation-line');
+                block.removeAttribute('data-annotation-block');
                 block.classList.remove('mac-line-annotated');
                 return;
             }
 
-            lineIndex += 1;
-            const currentLineIndex = lineIndex;
-            block.dataset.annotationLine = String(currentLineIndex);
+            legacyLineIndex += 1;
+            const blockAnchor = `block-${legacyLineIndex}`;
+            block.dataset.annotationLine = String(legacyLineIndex);
+            block.dataset.annotationBlock = blockAnchor;
             block.classList.add('mac-line-annotated');
 
-            let marker = overlay.querySelector(`.mac-line-annotation-btn[data-annotation-line="${currentLineIndex}"]`);
+            nextRecords.push({
+                block,
+                blockAnchor,
+                legacyLineIndex,
+                lineText: text,
+            });
+            seenAnchors.add(blockAnchor);
+        });
+
+        annotationBlockRecordsRef.current = nextRecords;
+        visualAnnotationLinesRef.current = visualAnnotationLinesRef.current.filter((line) => seenAnchors.has(line.blockAnchor));
+        Array.from(visualLineCacheRef.current.keys()).forEach((blockAnchor) => {
+            if (!seenAnchors.has(blockAnchor)) {
+                visualLineCacheRef.current.delete(blockAnchor);
+            }
+        });
+    };
+
+    const ensureAnnotationHotzoneOverlay = () => {
+        let overlay = document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID);
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = ANNOTATION_HOTZONE_OVERLAY_ID;
+            overlay.className = 'mac-annotation-hotzone-overlay';
+            document.body.appendChild(overlay);
+        }
+        return overlay;
+    };
+
+    const setAnnotationHotzoneOverlayVisible = (visible) => {
+        const overlay = document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID);
+        if (!overlay) {
+            return;
+        }
+        overlay.classList.toggle('mac-annotation-hotzone-overlay--hidden', !visible);
+    };
+
+    const logAnnotationScrollState = (label) => {
+        if (typeof document === 'undefined') {
+            return;
+        }
+        if (annotationPerfDebugCountRef.current >= 8) {
+            return;
+        }
+        annotationPerfDebugCountRef.current += 1;
+
+        const overlay = document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID);
+        const root = articlePreviewRef.current;
+        const articleCard = root?.closest('.mac-article-glass-card') || null;
+        const sampleY = Math.max(80, Math.round(window.innerHeight * 0.22));
+        const sampleX = Math.round(window.innerWidth * 0.5);
+        const hitStack = document.elementsFromPoint(sampleX, sampleY).slice(0, 6).map((node) => ({
+            tag: node.tagName,
+            id: node.id || '',
+            className: node.className || '',
+        }));
+
+        logAnnotationPerfDebug(label, {
+            samplePoint: { x: sampleX, y: sampleY },
+            hitStack,
+            overlay: overlay ? {
+                hidden: overlay.classList.contains('mac-annotation-hotzone-overlay--hidden'),
+                childCount: overlay.childElementCount,
+                rect: {
+                    top: Math.round(overlay.getBoundingClientRect().top),
+                    left: Math.round(overlay.getBoundingClientRect().left),
+                    width: Math.round(overlay.getBoundingClientRect().width),
+                    height: Math.round(overlay.getBoundingClientRect().height),
+                },
+            } : null,
+            articleCard: articleCard ? {
+                className: articleCard.className || '',
+                rect: {
+                    top: Math.round(articleCard.getBoundingClientRect().top),
+                    left: Math.round(articleCard.getBoundingClientRect().left),
+                    width: Math.round(articleCard.getBoundingClientRect().width),
+                    height: Math.round(articleCard.getBoundingClientRect().height),
+                },
+            } : null,
+            previewRoot: root ? {
+                childCount: root.children.length,
+                rect: {
+                    top: Math.round(root.getBoundingClientRect().top),
+                    left: Math.round(root.getBoundingClientRect().left),
+                    width: Math.round(root.getBoundingClientRect().width),
+                    height: Math.round(root.getBoundingClientRect().height),
+                },
+            } : null,
+        });
+    };
+
+    const findAnnotationBlockRecord = (blockAnchorOrLineIndex) => {
+        const records = annotationBlockRecordsRef.current;
+        return records.find((record) => (
+            record.blockAnchor === blockAnchorOrLineIndex
+            || String(record.legacyLineIndex) === String(blockAnchorOrLineIndex)
+        )) || null;
+    };
+
+    const ensureVisualLinesForBlock = (blockAnchorOrLineIndex, { force = false } = {}) => {
+        const record = findAnnotationBlockRecord(blockAnchorOrLineIndex);
+        if (!record) {
+            return [];
+        }
+
+        const blockWidth = Math.round(record.block.getBoundingClientRect().width || 0);
+        const fingerprint = createVisualLineCacheKey({
+            blockAnchor: record.blockAnchor,
+            text: record.lineText,
+            width: blockWidth,
+        });
+        const cachedLines = force ? null : reuseCachedVisualLines({
+            cache: visualLineCacheRef.current,
+            blockAnchor: record.blockAnchor,
+            fingerprint,
+        });
+        if (cachedLines) {
+            syncMeasuredLinesForBlock(record.blockAnchor, cachedLines);
+            return cachedLines;
+        }
+
+        const measuredLines = measureVisualLines(record.block, {
+            blockAnchor: record.blockAnchor,
+            legacyLineIndex: record.legacyLineIndex,
+            startLineIndex: record.legacyLineIndex,
+        });
+        visualLineCacheRef.current.set(record.blockAnchor, {
+            fingerprint,
+            lines: measuredLines,
+        });
+        syncMeasuredLinesForBlock(record.blockAnchor, measuredLines);
+        return measuredLines;
+    };
+
+    const ensureVisualLinesForAnnotation = (annotation) => {
+        if (!annotation) {
+            return [];
+        }
+
+        if (annotation.block_anchor) {
+            return ensureVisualLinesForBlock(annotation.block_anchor);
+        }
+
+        if (Number.isFinite(annotation.line_index)) {
+            return ensureVisualLinesForBlock(annotation.line_index);
+        }
+
+        return [];
+    };
+
+    const scheduleBlockMeasurement = (blockAnchor) => {
+        if (!blockAnchor) {
+            return;
+        }
+        pendingMeasureBlocksRef.current.add(blockAnchor);
+        if (annotationHotzoneScrollingRef.current) {
+            return;
+        }
+        if (blockMeasureRafRef.current) {
+            return;
+        }
+
+        blockMeasureRafRef.current = window.requestAnimationFrame(() => {
+            blockMeasureRafRef.current = 0;
+            if (annotationHotzoneScrollingRef.current) {
+                return;
+            }
+            const anchors = Array.from(pendingMeasureBlocksRef.current).slice(0, 2);
+            anchors.forEach((anchor) => {
+                pendingMeasureBlocksRef.current.delete(anchor);
+                ensureVisualLinesForBlock(anchor);
+            });
+            renderAnnotationHotzones();
+            setAnnotationHotzoneOverlayVisible(true);
+            if (pendingMeasureBlocksRef.current.size > 0) {
+                scheduleBlockMeasurement(Array.from(pendingMeasureBlocksRef.current)[0]);
+            }
+        });
+    };
+
+    const observeAnnotationBlocks = () => {
+        disconnectAnnotationBlockObserver();
+        if (typeof IntersectionObserver === 'undefined') {
+            return;
+        }
+
+        blockObserverRef.current = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) {
+                    return;
+                }
+                const blockAnchor = entry.target?.dataset?.annotationBlock;
+                if (blockAnchor) {
+                    scheduleBlockMeasurement(blockAnchor);
+                }
+            });
+        }, {
+            root: null,
+            rootMargin: '30% 0px 30% 0px',
+            threshold: 0,
+        });
+
+        annotationBlockRecordsRef.current.forEach(({ block }) => {
+            blockObserverRef.current.observe(block);
+        });
+    };
+
+    const renderAnnotationHotzones = () => {
+        const root = articlePreviewRef.current;
+        if (!root) {
+            removeAnnotationHotzoneOverlay();
+            return;
+        }
+
+        const overlay = ensureAnnotationHotzoneOverlay();
+        const seenButtons = new Set();
+        const rootRect = root.getBoundingClientRect();
+        const annotationLineBuckets = {};
+        const blockAnnotationBuckets = {};
+
+        annotations.forEach((annotation) => {
+            const resolvedLine = resolveAnnotationAnchor(annotation, visualAnnotationLinesRef.current);
+            if (resolvedLine?.key) {
+                if (!annotationLineBuckets[resolvedLine.key]) {
+                    annotationLineBuckets[resolvedLine.key] = [];
+                }
+                annotationLineBuckets[resolvedLine.key].push(annotation);
+            }
+
+            const blockKey = annotation.block_anchor || `legacy:${annotation.line_index || 0}`;
+            if (!blockAnnotationBuckets[blockKey]) {
+                blockAnnotationBuckets[blockKey] = [];
+            }
+            blockAnnotationBuckets[blockKey].push(annotation);
+        });
+
+        const renderMarker = ({
+            markerKey,
+            lineIndex,
+            lineText,
+            blockAnchor,
+            textStart,
+            textEnd,
+            targetRect,
+            previewAnnotations,
+            allowPreview = true,
+            allowHoverHighlight = true,
+            onClick,
+        }) => {
+            const layout = getAnnotationHotzoneLayout({
+                rootRect,
+                blockRect: targetRect,
+                viewportWidth: window.innerWidth,
+            });
+            let marker = overlay.querySelector(`.mac-line-annotation-btn[data-annotation-key="${markerKey}"]`);
             if (!marker) {
                 marker = document.createElement('button');
                 marker.type = 'button';
@@ -381,33 +684,29 @@ export default function ArticleDetail() {
                 overlay.appendChild(marker);
             }
 
-            const normalizedText = text.slice(0, 180);
-            const blockRect = block.getBoundingClientRect();
-            const layout = getAnnotationHotzoneLayout({
-                rootRect,
-                blockRect,
-                viewportWidth: window.innerWidth,
-            });
+            marker.dataset.annotationKey = markerKey;
             marker.dataset.annotationLine = String(lineIndex);
-            marker.dataset.annotationText = normalizedText;
-            const rootPreviewAnnotations = (annotationLineBuckets[currentLineIndex] || []).filter((annotation) => !annotation?.parent_id);
-            const preview = buildAnnotationPreview(rootPreviewAnnotations);
+            marker.dataset.annotationText = String(lineText || '').slice(0, 180);
+            marker.dataset.annotationBlock = blockAnchor;
+            marker.dataset.annotationTextStart = String(textStart ?? 0);
+            marker.dataset.annotationTextEnd = String(textEnd ?? 0);
+
+            const rootPreviewAnnotations = (previewAnnotations || []).filter((annotation) => !annotation?.parent_id);
+            const preview = allowPreview ? buildAnnotationPreview(rootPreviewAnnotations) : null;
             marker.classList.toggle('mac-line-annotation-btn--has-preview', Boolean(preview));
+            marker.classList.toggle('mac-line-annotation-btn--fallback', !allowHoverHighlight);
             marker.dataset.annotationCount = String(preview?.totalCount || 0);
             marker.style.left = `${Math.floor(rootRect.left + layout.left)}px`;
-            marker.style.top = `${Math.floor(blockRect.top)}px`;
+            marker.style.top = `${Math.floor(targetRect.top)}px`;
             marker.style.width = `${layout.width}px`;
             marker.style.height = `${layout.height}px`;
-            marker.dataset.annotationLine = String(currentLineIndex);
-            marker.title = preview
-                ? `第 ${currentLineIndex} 行，已有 ${preview.totalCount} 条批注`
-                : `第 ${currentLineIndex} 行添加批注`;
-            marker.setAttribute(
-                'aria-label',
-                preview
-                    ? `第 ${currentLineIndex} 行，已有 ${preview.totalCount} 条批注`
-                    : `第 ${currentLineIndex} 行添加批注`,
-            );
+            const markerLabel = !allowPreview && !allowHoverHighlight
+                ? '添加批注'
+                : preview
+                    ? `第 ${lineIndex} 行，已有 ${preview.totalCount} 条批注`
+                    : `第 ${lineIndex} 行添加批注`;
+            marker.title = markerLabel;
+            marker.setAttribute('aria-label', markerLabel);
 
             let previewNode = marker.querySelector('.mac-line-annotation-preview');
             if (preview) {
@@ -433,53 +732,131 @@ export default function ArticleDetail() {
                 previewNode.remove();
             }
 
-            marker.onclick = (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-
-                const nextComposerPos = clampAnnotationComposerPosition({
-                    pointerX: event.clientX,
-                    pointerY: event.clientY,
-                    viewportWidth: window.innerWidth,
-                    viewportHeight: window.innerHeight,
-                });
-                logAnnotationComposerDebug('hotzone-click', {
-                    lineIndex: currentLineIndex,
-                    pointer: {
-                        clientX: Math.round(event.clientX),
-                        clientY: Math.round(event.clientY),
-                    },
-                    rootRect: {
-                        top: Math.round(rootRect.top),
-                        left: Math.round(rootRect.left),
-                        right: Math.round(rootRect.right),
-                        bottom: Math.round(rootRect.bottom),
-                        width: Math.round(rootRect.width),
-                        height: Math.round(rootRect.height),
-                    },
-                    blockRect: {
-                        top: Math.round(blockRect.top),
-                        left: Math.round(blockRect.left),
-                        right: Math.round(blockRect.right),
-                        bottom: Math.round(blockRect.bottom),
-                        width: Math.round(blockRect.width),
-                        height: Math.round(blockRect.height),
-                    },
-                    hotzoneLayout: layout,
-                    nextComposerPos,
-                    viewport: {
-                        width: window.innerWidth,
-                        height: window.innerHeight,
-                    },
-                });
-                openAnnotationBubbleForLine({
-                    lineIndex: currentLineIndex,
-                    lineText: normalizedText,
-                    resetDraft: true,
-                });
-            };
-
+            marker.onclick = onClick;
+            marker.onmouseenter = null;
             seenButtons.add(marker);
+        };
+
+        annotationBlockRecordsRef.current.forEach((record) => {
+            const measuredLines = visualAnnotationLinesRef.current
+                .filter((line) => line.blockAnchor === record.blockAnchor)
+                .sort((a, b) => Number(a.textStart || 0) - Number(b.textStart || 0));
+
+            if (measuredLines.length > 0) {
+                measuredLines.forEach((line) => {
+                    const targetRect = materializeMeasuredLineRect(line);
+                    if (!targetRect) {
+                        return;
+                    }
+                    renderMarker({
+                        markerKey: line.key,
+                        lineIndex: line.lineIndex,
+                        lineText: line.lineText,
+                        blockAnchor: line.blockAnchor,
+                        textStart: line.textStart,
+                        textEnd: line.textEnd,
+                        targetRect,
+                        previewAnnotations: annotationLineBuckets[line.key] || [],
+                        allowPreview: true,
+                        allowHoverHighlight: true,
+                        onClick: (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openAnnotationBubbleForLine({
+                                line,
+                                resetDraft: true,
+                            });
+                        },
+                    });
+                });
+                return;
+            }
+
+            const blockRect = record.block.getBoundingClientRect();
+            renderMarker({
+                markerKey: `block:${record.blockAnchor}`,
+                lineIndex: record.legacyLineIndex,
+                lineText: record.lineText,
+                blockAnchor: record.blockAnchor,
+                textStart: 0,
+                textEnd: record.lineText.length,
+                targetRect: blockRect,
+                previewAnnotations: blockAnnotationBuckets[record.blockAnchor] || blockAnnotationBuckets[`legacy:${record.legacyLineIndex}`] || [],
+                allowPreview: false,
+                allowHoverHighlight: false,
+                onClick: (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const lines = ensureVisualLinesForBlock(record.blockAnchor);
+                    const nextLine = findNearestMeasuredLine(lines, event.clientY) || lines[0];
+                    if (!nextLine) {
+                        return;
+                    }
+
+                    const nextComposerPos = clampAnnotationComposerPosition({
+                        pointerX: event.clientX,
+                        pointerY: event.clientY,
+                        viewportWidth: window.innerWidth,
+                        viewportHeight: window.innerHeight,
+                    });
+                    logAnnotationComposerDebug('hotzone-click', {
+                        lineIndex: nextLine.lineIndex,
+                        pointer: {
+                            clientX: Math.round(event.clientX),
+                            clientY: Math.round(event.clientY),
+                        },
+                        rootRect: {
+                            top: Math.round(rootRect.top),
+                            left: Math.round(rootRect.left),
+                            right: Math.round(rootRect.right),
+                            bottom: Math.round(rootRect.bottom),
+                            width: Math.round(rootRect.width),
+                            height: Math.round(rootRect.height),
+                        },
+                        blockRect: {
+                            top: Math.round(blockRect.top),
+                            left: Math.round(blockRect.left),
+                            right: Math.round(blockRect.right),
+                            bottom: Math.round(blockRect.bottom),
+                            width: Math.round(blockRect.width),
+                            height: Math.round(blockRect.height),
+                        },
+                        nextLine: {
+                            key: nextLine.key,
+                            blockAnchor: nextLine.blockAnchor,
+                            lineText: nextLine.lineText,
+                            textStart: nextLine.textStart,
+                            textEnd: nextLine.textEnd,
+                            rect: nextLine.rect ? {
+                                top: Math.round(nextLine.rect.top),
+                                left: Math.round(nextLine.rect.left),
+                                right: Math.round(nextLine.rect.right),
+                                bottom: Math.round(nextLine.rect.bottom),
+                                width: Math.round(nextLine.rect.width),
+                                height: Math.round(nextLine.rect.height),
+                            } : null,
+                        },
+                        nextComposerPos,
+                        viewport: {
+                            width: window.innerWidth,
+                            height: window.innerHeight,
+                        },
+                    });
+                    renderAnnotationHotzones();
+                    openAnnotationBubbleForLine({
+                        line: nextLine,
+                        resetDraft: true,
+                    });
+                },
+            });
+            const fallbackMarker = overlay.querySelector(`.mac-line-annotation-btn[data-annotation-key="block:${record.blockAnchor}"]`);
+            if (fallbackMarker instanceof HTMLElement) {
+                fallbackMarker.onmouseenter = () => {
+                    ensureVisualLinesForBlock(record.blockAnchor);
+                    renderAnnotationHotzones();
+                };
+            }
         });
 
         Array.from(overlay.querySelectorAll('.mac-line-annotation-btn')).forEach((node) => {
@@ -541,23 +918,67 @@ export default function ArticleDetail() {
         return stripHeadingMarkup(title.trim());
     };
 
-    const getAnnotationLineElements = (lineIndex, fallbackLineText = '') => {
+    const getAnnotationLineElements = (lineOrKey, fallbackLineText = '') => {
         const root = articlePreviewRef.current;
-        if (!root || !lineIndex) {
+        if (!root || !lineOrKey) {
             return null;
         }
 
-        const block = root.querySelector(`:scope > [data-annotation-line="${lineIndex}"]`);
+        const line = typeof lineOrKey === 'string'
+            ? visualAnnotationLinesRef.current.find((item) => item.key === lineOrKey)
+            : lineOrKey;
+        if (!line) {
+            return null;
+        }
+
+        const block = root.querySelector(`:scope > [data-annotation-block="${line.blockAnchor}"]`);
         const overlay = document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID);
-        const button = overlay?.querySelector(`.mac-line-annotation-btn[data-annotation-line="${lineIndex}"]`) || null;
+        const button = overlay?.querySelector(`.mac-line-annotation-btn[data-annotation-key="${line.key}"]`) || null;
         if (!(block instanceof HTMLElement) || !(button instanceof HTMLElement)) {
             return null;
         }
 
+        const resolvedLineText = normalizeAnnotationText(
+            fallbackLineText || line.lineText || block.dataset.annotationText || getLineTextFromNode(block)
+        );
+
+        logAnnotationComposerDebug('line-elements', {
+            requested: typeof lineOrKey === 'string'
+                ? { key: lineOrKey }
+                : {
+                    key: lineOrKey.key,
+                    blockAnchor: lineOrKey.blockAnchor,
+                    lineText: lineOrKey.lineText,
+                    textStart: lineOrKey.textStart,
+                    textEnd: lineOrKey.textEnd,
+                },
+            resolvedLine: {
+                key: line.key,
+                lineIndex: line.lineIndex,
+                blockAnchor: line.blockAnchor,
+                lineText: line.lineText,
+                textStart: line.textStart,
+                textEnd: line.textEnd,
+            },
+            fallbackLineText,
+            resolvedLineText,
+            blockTextSample: normalizeAnnotationText(getLineTextFromNode(block)).slice(0, 80),
+            blockDatasetText: block.dataset.annotationText || '',
+            buttonRect: {
+                top: Math.round(button.getBoundingClientRect().top),
+                left: Math.round(button.getBoundingClientRect().left),
+                right: Math.round(button.getBoundingClientRect().right),
+                bottom: Math.round(button.getBoundingClientRect().bottom),
+                width: Math.round(button.getBoundingClientRect().width),
+                height: Math.round(button.getBoundingClientRect().height),
+            },
+        });
+
         return {
             block,
             button,
-            lineText: normalizeAnnotationText(fallbackLineText || block.dataset.annotationText || getLineTextFromNode(block)),
+            line,
+            lineText: resolvedLineText,
         };
     };
 
@@ -570,21 +991,18 @@ export default function ArticleDetail() {
         return current?.id || annotationId || '';
     };
 
-    const getLineRootAnnotations = (lineIndex) => {
-        return annotations.filter((annotation) => (
-            Number(annotation?.line_index || 0) === Number(lineIndex || 0)
-            && !annotation?.parent_id
-        ));
-    };
+    const getLineRootAnnotations = (lineKey) => annotations.filter((annotation) => (
+        resolveAnnotationAnchor(annotation, visualAnnotationLinesRef.current)?.key === lineKey
+        && !annotation?.parent_id
+    ));
 
     const openAnnotationBubbleForLine = ({
-        lineIndex,
-        lineText = '',
+        line,
         resetDraft = false,
         preserveFocus = false,
         focusTargetId = '',
     }) => {
-        const elements = getAnnotationLineElements(lineIndex, lineText);
+        const elements = getAnnotationLineElements(line, line?.lineText || '');
         if (!elements) {
             return false;
         }
@@ -597,11 +1015,39 @@ export default function ArticleDetail() {
             viewportHeight: window.innerHeight,
         });
 
+        const rootAnnotations = getLineRootAnnotations(elements.line.key);
+
+        logAnnotationComposerDebug('open-bubble', {
+            line: {
+                key: elements.line.key,
+                lineIndex: elements.line.lineIndex,
+                blockAnchor: elements.line.blockAnchor,
+                lineText: elements.line.lineText,
+                textStart: elements.line.textStart,
+                textEnd: elements.line.textEnd,
+            },
+            resolvedLineText: elements.lineText,
+            buttonRect: {
+                top: Math.round(buttonRect.top),
+                left: Math.round(buttonRect.left),
+                right: Math.round(buttonRect.right),
+                bottom: Math.round(buttonRect.bottom),
+                width: Math.round(buttonRect.width),
+                height: Math.round(buttonRect.height),
+            },
+            nextComposerPos,
+            mode: rootAnnotations.length > 0 ? 'thread' : 'create',
+        });
+
         setComposerPos({
             x: nextComposerPos.x,
             y: nextComposerPos.y,
-            lineIndex,
+            lineIndex: elements.line.lineIndex,
+            lineKey: elements.line.key,
             lineText: elements.lineText,
+            blockAnchor: elements.line.blockAnchor,
+            textStart: elements.line.textStart,
+            textEnd: elements.line.textEnd,
             popupWidth: nextComposerPos.popupWidth,
             popupHeight: nextComposerPos.popupHeight,
         });
@@ -611,13 +1057,12 @@ export default function ArticleDetail() {
                 setFocusAnnotationId('');
             }
         }
-        const rootAnnotations = getLineRootAnnotations(lineIndex);
         const defaultRootId = focusTargetId ? getAnnotationRootId(focusTargetId) : (rootAnnotations[0]?.id || '');
         setAnnotationComposerMode(rootAnnotations.length > 0 ? 'thread' : 'create');
         setActiveReplyParentId(defaultRootId);
         setIsExplicitReplyTarget(false);
         setExpandedAnnotationRoots(focusTargetId ? { [getAnnotationRootId(focusTargetId)]: true } : {});
-        setActiveComposeLine(lineIndex);
+        setActiveComposeLine(elements.line.key);
         return true;
     };
 
@@ -628,7 +1073,18 @@ export default function ArticleDetail() {
         setIsExplicitReplyTarget(false);
         setExpandedAnnotationRoots({});
         setAnnotationComposerMode('create');
-        setComposerPos({ x: 0, y: 0, lineIndex: null, lineText: '', popupWidth: 320, popupHeight: 360 });
+        setComposerPos({
+            x: 0,
+            y: 0,
+            lineIndex: null,
+            lineKey: '',
+            lineText: '',
+            blockAnchor: '',
+            textStart: null,
+            textEnd: null,
+            popupWidth: 320,
+            popupHeight: 360,
+        });
     };
 
     const handleCreateAnnotation = async () => {
@@ -660,6 +1116,10 @@ export default function ArticleDetail() {
                     content: plainContent,
                     line_index: composerPos.lineIndex,
                     line_text: composerPos.lineText,
+                    block_anchor: composerPos.blockAnchor,
+                    block_text_start: composerPos.textStart,
+                    block_text_end: composerPos.textEnd,
+                    quote_text: composerPos.lineText,
                     parent_id: annotationComposerMode === 'thread' ? activeReplyParentId || null : null,
                 },
             });
@@ -669,6 +1129,10 @@ export default function ArticleDetail() {
                     content: plainContent,
                     line_index: composerPos.lineIndex,
                     line_text: composerPos.lineText,
+                    block_anchor: composerPos.blockAnchor,
+                    block_text_start: composerPos.textStart,
+                    block_text_end: composerPos.textEnd,
+                    quote_text: composerPos.lineText,
                     parent_id: annotationComposerMode === 'thread' ? activeReplyParentId || null : null,
                 },
                 { headers }
@@ -679,6 +1143,9 @@ export default function ArticleDetail() {
                 recipient_id: res.data?.recipient_id || null,
                 recipient_username: res.data?.recipient_username || '',
                 line_index: res.data?.line_index ?? null,
+                block_anchor: res.data?.block_anchor || '',
+                block_text_start: res.data?.block_text_start ?? null,
+                block_text_end: res.data?.block_text_end ?? null,
                 content: res.data?.content || '',
             });
 
@@ -706,7 +1173,7 @@ export default function ArticleDetail() {
                 setActiveReplyParentId(nextRootId);
                 setIsExplicitReplyTarget(false);
             }
-            buildLineAnnotationAnchors();
+            renderAnnotationHotzones();
         } catch (error) {
             console.error('提交批注失败：', error);
             macAlert(error.response?.data?.detail || '提交失败，请稍后再试。', '批注失败');
@@ -719,19 +1186,20 @@ export default function ArticleDetail() {
         }
 
         const targetAnnotation = annotations.find((annotation) => String(annotation?.id || '') === String(focusAnnotationId));
-        if (!targetAnnotation?.line_index) {
+        ensureVisualLinesForAnnotation(targetAnnotation);
+        const resolvedLine = resolveAnnotationAnchor(targetAnnotation, visualAnnotationLinesRef.current);
+        if (!resolvedLine) {
             return;
         }
 
         const openTargetBubble = () => openAnnotationBubbleForLine({
-            lineIndex: targetAnnotation.line_index,
-            lineText: targetAnnotation.line_text || '',
+            line: resolvedLine,
             resetDraft: true,
             preserveFocus: true,
             focusTargetId: targetAnnotation.id,
         });
 
-        const elements = getAnnotationLineElements(targetAnnotation.line_index, targetAnnotation.line_text || '');
+        const elements = getAnnotationLineElements(resolvedLine, targetAnnotation.quote_text || targetAnnotation.line_text || '');
         if (!elements) {
             return false;
         }
@@ -741,7 +1209,8 @@ export default function ArticleDetail() {
         let tries = 0;
         const maxTries = 12;
         const tryOpen = () => {
-            buildLineAnnotationAnchors();
+            ensureVisualLinesForAnnotation(targetAnnotation);
+            renderAnnotationHotzones();
             if (openTargetBubble()) {
                 if (typeof window !== 'undefined' && window.location.hash) {
                     window.history.replaceState(
@@ -846,13 +1315,17 @@ export default function ArticleDetail() {
                     });
                 }
                 buildOutlineFromRenderedPreview();
-                buildLineAnnotationAnchors();
+                buildAnnotationBlockRegistry();
+                renderAnnotationHotzones();
+                observeAnnotationBlocks();
                 focusAnnotationByHash();
                 setIsMainContentReady(true);
             }).catch(e => {
                 console.error("正文Vditor底层解析故障", e);
                 setOutline([]);
-                buildLineAnnotationAnchors();
+                buildAnnotationBlockRegistry();
+                renderAnnotationHotzones();
+                observeAnnotationBlocks();
                 setIsMainContentReady(true);
             });
             return;
@@ -860,6 +1333,10 @@ export default function ArticleDetail() {
 
         setIsMainContentReady(false);
         setOutline([]);
+        annotationBlockRecordsRef.current = [];
+        visualAnnotationLinesRef.current = [];
+        visualLineCacheRef.current.clear();
+        disconnectAnnotationBlockObserver();
         removeAnnotationHotzoneOverlay();
     }, [article]);
 
@@ -867,7 +1344,7 @@ export default function ArticleDetail() {
         if (!isMainContentReady || !articlePreviewRef.current || article?.is_restricted) {
             return;
         }
-        buildLineAnnotationAnchors();
+        renderAnnotationHotzones();
     }, [annotations, isMainContentReady]);
 
     useEffect(() => {
@@ -882,33 +1359,69 @@ export default function ArticleDetail() {
             return;
         }
 
-        const scheduleRebuild = () => {
+        const scheduleRender = () => {
+            annotationHotzoneScrollingRef.current = true;
             if (annotationHotzoneRafRef.current) {
                 cancelAnimationFrame(annotationHotzoneRafRef.current);
             }
             annotationHotzoneRafRef.current = window.requestAnimationFrame(() => {
                 annotationHotzoneRafRef.current = 0;
-                buildLineAnnotationAnchors();
+                setAnnotationHotzoneOverlayVisible(false);
+                logAnnotationScrollState('scroll-hide-overlay');
             });
+            if (annotationHotzoneScrollTimeoutRef.current) {
+                clearTimeout(annotationHotzoneScrollTimeoutRef.current);
+            }
+            annotationHotzoneScrollTimeoutRef.current = window.setTimeout(() => {
+                annotationHotzoneScrollTimeoutRef.current = 0;
+                annotationHotzoneScrollingRef.current = false;
+                renderAnnotationHotzones();
+                setAnnotationHotzoneOverlayVisible(true);
+                if (pendingMeasureBlocksRef.current.size > 0) {
+                    scheduleBlockMeasurement(Array.from(pendingMeasureBlocksRef.current)[0]);
+                }
+                logAnnotationScrollState('scroll-show-overlay');
+            }, 120);
         };
 
-        window.addEventListener('resize', scheduleRebuild);
-        window.addEventListener('scroll', scheduleRebuild, { passive: true });
+        const handleResize = () => {
+            visualLineCacheRef.current.clear();
+            visualAnnotationLinesRef.current = [];
+            buildAnnotationBlockRegistry();
+            renderAnnotationHotzones();
+            observeAnnotationBlocks();
+        };
+
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('scroll', scheduleRender, { passive: true });
         return () => {
-            window.removeEventListener('resize', scheduleRebuild);
-            window.removeEventListener('scroll', scheduleRebuild);
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('scroll', scheduleRender);
             if (annotationHotzoneRafRef.current) {
                 cancelAnimationFrame(annotationHotzoneRafRef.current);
                 annotationHotzoneRafRef.current = 0;
             }
+            if (annotationHotzoneScrollTimeoutRef.current) {
+                clearTimeout(annotationHotzoneScrollTimeoutRef.current);
+                annotationHotzoneScrollTimeoutRef.current = 0;
+            }
         };
-    }, [isMainContentReady, article, annotations]);
+    }, [isMainContentReady, article]);
 
     useEffect(() => () => {
+        disconnectAnnotationBlockObserver();
         removeAnnotationHotzoneOverlay();
         if (annotationHotzoneRafRef.current) {
             cancelAnimationFrame(annotationHotzoneRafRef.current);
             annotationHotzoneRafRef.current = 0;
+        }
+        if (annotationHotzoneScrollTimeoutRef.current) {
+            clearTimeout(annotationHotzoneScrollTimeoutRef.current);
+            annotationHotzoneScrollTimeoutRef.current = 0;
+        }
+        if (blockMeasureRafRef.current) {
+            cancelAnimationFrame(blockMeasureRafRef.current);
+            blockMeasureRafRef.current = 0;
         }
     }, []);
 
@@ -985,7 +1498,7 @@ export default function ArticleDetail() {
     const hasAdminRights = user && (user.role === 'admin' || user.id === article.author_id);
     const showOutline = article && !['interview', 'solution'].includes(article.category);
     const activeLineAnnotations = annotations.filter(
-        (annotation) => Number(annotation?.line_index || 0) === Number(activeComposeLine || 0)
+        (annotation) => resolveAnnotationAnchor(annotation, visualAnnotationLinesRef.current)?.key === activeComposeLine
     );
     const activeRootAnnotations = activeLineAnnotations.filter((annotation) => !annotation?.parent_id);
     const activeReplyAnnotations = activeLineAnnotations.filter((annotation) => Boolean(annotation?.parent_id));

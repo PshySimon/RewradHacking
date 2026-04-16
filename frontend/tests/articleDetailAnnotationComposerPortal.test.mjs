@@ -33,7 +33,7 @@ test('ArticleDetail renders annotation previews in the hotzone and keeps the ful
     assert.match(source, /mac-line-annotation-btn--has-preview/);
     assert.match(source, /mac-line-annotation-preview/);
     assert.match(source, /mac-annotation-thread-panel/);
-    assert.match(source, /targetAnnotation\.line_index[\s\S]*preserveFocus:\s*true/);
+    assert.match(source, /resolveAnnotationAnchor\(targetAnnotation, visualAnnotationLinesRef\.current\)[\s\S]*preserveFocus:\s*true/);
     assert.doesNotMatch(css, /\.mac-annotations-zone\s*\{/);
     assert.match(css, /\.mac-line-annotation-preview\s*\{/);
     assert.match(css, /\.mac-annotation-thread-panel\s*\{/);
@@ -57,12 +57,13 @@ test('ArticleDetail distinguishes thread replies from new root annotations and r
     assert.match(source, /parent_id:\s*item\.parent_id \|\| override\?\.parent_id \|\| null/);
 });
 
-test('ArticleDetail captures the current line index when wiring hotzone click handlers', () => {
+test('ArticleDetail captures the current visual line when wiring hotzone click handlers', () => {
     const source = fs.readFileSync(sourcePath, 'utf8');
 
-    assert.match(source, /const currentLineIndex = lineIndex;/);
-    assert.match(source, /openAnnotationBubbleForLine\(\{\s*lineIndex:\s*currentLineIndex/);
-    assert.match(source, /marker\.dataset\.annotationLine = String\(currentLineIndex\)/);
+    assert.match(source, /marker\.dataset\.annotationKey = markerKey/);
+    assert.match(source, /marker\.dataset\.annotationLine = String\(lineIndex\)/);
+    assert.match(source, /openAnnotationBubbleForLine\(\{\s*line,/);
+    assert.match(source, /findNearestMeasuredLine\(lines, event\.clientY\)/);
 });
 
 test('ArticleDetail keeps thread input neutral until the user explicitly chooses a reply target', () => {
@@ -130,4 +131,70 @@ test('ArticleDetail reloads canonical annotations after creating a reply so pare
     assert.match(source, /await axios\.post\([\s\S]*?await fetchAnnotations\(\);/);
     assert.match(source, /setAnnotationReplyOverrides\(\(prev\) => \(\{[\s\S]*\[res\.data\.id\]:\s*\{/);
     assert.doesNotMatch(source, /setAnnotations\(\(prev\) => \[\.\.\.prev, \{ \.\.\.res\.data, content: next \}\]/);
+});
+
+test('ArticleDetail submits and resolves visual-line anchors in addition to legacy line indexes', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+
+    assert.match(source, /block_anchor:/);
+    assert.match(source, /block_text_start:/);
+    assert.match(source, /block_text_end:/);
+    assert.match(source, /quote_text:/);
+    assert.match(source, /resolveAnnotationAnchor/);
+    assert.match(source, /measureVisualLines/);
+});
+
+test('ArticleDetail uses viewport-driven lazy parsing instead of rebuilding all visual lines on scroll', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+
+    assert.match(source, /new IntersectionObserver\(/);
+    assert.match(source, /visualLineCacheRef/);
+    assert.match(source, /pendingMeasureBlocksRef/);
+    assert.doesNotMatch(source, /window\.addEventListener\('scroll',[\s\S]*buildLineAnnotationAnchors\(\)/);
+});
+
+test('ArticleDetail measures a block on demand for hotzone clicks and hash-focused annotations', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+
+    assert.match(source, /ensureVisualLinesForBlock/);
+    assert.match(source, /ensureVisualLinesForAnnotation/);
+    assert.match(source, /findNearestMeasuredLine/);
+});
+
+test('ArticleDetail suppresses preview chips for unparsed block-level fallback hotzones until visual lines are measured', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+
+    assert.match(source, /const preview = allowPreview \? buildAnnotationPreview\(rootPreviewAnnotations\) : null/);
+    assert.match(source, /markerKey:\s*`block:\$\{record\.blockAnchor\}`[\s\S]*allowPreview:\s*false/);
+    assert.match(source, /markerKey:\s*line\.key[\s\S]*allowPreview:\s*true/);
+    assert.match(source, /const markerLabel = !allowPreview && !allowHoverHighlight\s*\?\s*'添加批注'/);
+});
+
+test('ArticleDetail eagerly upgrades a fallback block hotzone to visual-line markers on hover', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+
+    assert.match(source, /fallbackMarker\.onmouseenter = \(\) => \{/);
+    assert.match(source, /ensureVisualLinesForBlock\(record\.blockAnchor\);[\s\S]*renderAnnotationHotzones\(\);/);
+});
+
+test('ArticleDetail keeps fallback hotzones visually inert until the block is parsed into visual lines', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    const css = fs.readFileSync(cssPath, 'utf8');
+
+    assert.match(source, /marker\.classList\.toggle\('mac-line-annotation-btn--fallback', !allowHoverHighlight\)/);
+    assert.match(source, /allowHoverHighlight:\s*false/);
+    assert.match(css, /\.mac-line-annotation-btn--fallback:hover\s*\{[\s\S]*background:\s*transparent;/);
+});
+
+test('ArticleDetail hides the annotation overlay during active scrolling and redraws it after scroll idle', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8');
+    const css = fs.readFileSync(cssPath, 'utf8');
+
+    assert.match(source, /const annotationHotzoneScrollTimeoutRef = useRef\(0\)/);
+    assert.match(source, /const annotationHotzoneScrollingRef = useRef\(false\)/);
+    assert.match(source, /setAnnotationHotzoneOverlayVisible\(false\);/);
+    assert.match(source, /if \(annotationHotzoneScrollingRef\.current\) \{\s*return;\s*\}/);
+    assert.match(source, /Array\.from\(pendingMeasureBlocksRef\.current\)\.slice\(0,\s*2\)/);
+    assert.match(source, /annotationHotzoneScrollTimeoutRef\.current = window\.setTimeout\(\(\) => \{[\s\S]*renderAnnotationHotzones\(\);[\s\S]*setAnnotationHotzoneOverlayVisible\(true\);[\s\S]*120\)/);
+    assert.match(css, /\.mac-annotation-hotzone-overlay--hidden\s*\{[\s\S]*opacity:\s*0;/);
 });

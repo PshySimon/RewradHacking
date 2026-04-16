@@ -21,6 +21,10 @@ def _ensure_annotation_compat_columns():
     compatibility_columns = {
         "parent_id": "ALTER TABLE annotations ADD COLUMN parent_id VARCHAR(16)",
         "recipient_id": "ALTER TABLE annotations ADD COLUMN recipient_id INTEGER",
+        "block_anchor": "ALTER TABLE annotations ADD COLUMN block_anchor VARCHAR(64)",
+        "block_text_start": "ALTER TABLE annotations ADD COLUMN block_text_start INTEGER",
+        "block_text_end": "ALTER TABLE annotations ADD COLUMN block_text_end INTEGER",
+        "quote_text": "ALTER TABLE annotations ADD COLUMN quote_text VARCHAR(240) DEFAULT '' NOT NULL",
     }
 
     with engine.begin() as connection:

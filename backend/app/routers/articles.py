@@ -405,11 +405,28 @@ def create_annotation(
     if annotation_in.line_index < 1:
         raise HTTPException(status_code=400, detail="非法的行索引。")
 
+    block_anchor = _normalize_annotation_text(annotation_in.block_anchor or "")
+    block_text_start = annotation_in.block_text_start
+    block_text_end = annotation_in.block_text_end
+    quote_text = _normalize_annotation_text(annotation_in.quote_text or line_text)[:240]
+
     parent_annotation = None
     recipient_id = article.author_id
     target_line_index = annotation_in.line_index
     target_line_text = line_text[:240]
+    target_block_anchor = block_anchor or None
+    target_block_text_start = block_text_start
+    target_block_text_end = block_text_end
+    target_quote_text = quote_text
     event_type = "annotation"
+
+    if not annotation_in.parent_id:
+        if not target_block_anchor:
+            raise HTTPException(status_code=400, detail="缺少视觉行锚点。")
+        if target_block_text_start is None or target_block_text_end is None:
+            raise HTTPException(status_code=400, detail="缺少视觉行文本范围。")
+        if target_block_text_start < 0 or target_block_text_end <= target_block_text_start:
+            raise HTTPException(status_code=400, detail="非法的视觉行文本范围。")
 
     if annotation_in.parent_id:
         parent_annotation = db.query(models.Annotation).filter(
@@ -421,6 +438,10 @@ def create_annotation(
         recipient_id = parent_annotation.author_id
         target_line_index = parent_annotation.line_index
         target_line_text = parent_annotation.line_text
+        target_block_anchor = parent_annotation.block_anchor
+        target_block_text_start = parent_annotation.block_text_start
+        target_block_text_end = parent_annotation.block_text_end
+        target_quote_text = parent_annotation.quote_text or parent_annotation.line_text
         event_type = "annotation_reply"
 
     new_annotation = models.Annotation(
@@ -430,6 +451,10 @@ def create_annotation(
         recipient_id=recipient_id,
         line_index=target_line_index,
         line_text=target_line_text,
+        block_anchor=target_block_anchor,
+        block_text_start=target_block_text_start,
+        block_text_end=target_block_text_end,
+        quote_text=(target_quote_text or target_line_text)[:240],
         content=content,
     )
     db.add(new_annotation)

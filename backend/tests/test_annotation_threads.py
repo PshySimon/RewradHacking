@@ -73,6 +73,10 @@ class AnnotationThreadsTest(unittest.TestCase):
                 "content": "根批注",
                 "line_index": 8,
                 "line_text": "这一行的正文",
+                "block_anchor": "block-1",
+                "block_text_start": 12,
+                "block_text_end": 24,
+                "quote_text": "这一行的正文",
             },
             headers={"Authorization": f"Bearer {self._token('reviewer')}"},
         )
@@ -81,6 +85,10 @@ class AnnotationThreadsTest(unittest.TestCase):
         self.assertIsNone(root_payload["parent_id"])
         self.assertEqual(root_payload["recipient_id"], self.author.id)
         self.assertEqual(root_payload["recipient_username"], "author")
+        self.assertEqual(root_payload["block_anchor"], "block-1")
+        self.assertEqual(root_payload["block_text_start"], 12)
+        self.assertEqual(root_payload["block_text_end"], 24)
+        self.assertEqual(root_payload["quote_text"], "这一行的正文")
 
         reply_response = self.client.post(
             f"/api/articles/{self.article.id}/annotations",
@@ -89,6 +97,10 @@ class AnnotationThreadsTest(unittest.TestCase):
                 "line_index": 999,
                 "line_text": "这两个字段在回复里应该被忽略",
                 "parent_id": root_payload["id"],
+                "block_anchor": "ignored-block",
+                "block_text_start": 1,
+                "block_text_end": 2,
+                "quote_text": "会被忽略",
             },
             headers={"Authorization": f"Bearer {self._token('author')}"},
         )
@@ -99,6 +111,10 @@ class AnnotationThreadsTest(unittest.TestCase):
         self.assertEqual(reply_payload["recipient_username"], "reviewer")
         self.assertEqual(reply_payload["line_index"], 8)
         self.assertEqual(reply_payload["line_text"], "这一行的正文")
+        self.assertEqual(reply_payload["block_anchor"], "block-1")
+        self.assertEqual(reply_payload["block_text_start"], 12)
+        self.assertEqual(reply_payload["block_text_end"], 24)
+        self.assertEqual(reply_payload["quote_text"], "这一行的正文")
 
         list_response = self.client.get(f"/api/articles/{self.article.id}/annotations")
         self.assertEqual(list_response.status_code, 200)
@@ -108,6 +124,8 @@ class AnnotationThreadsTest(unittest.TestCase):
         self.assertEqual(data_by_id[root_payload["id"]]["recipient_username"], "author")
         self.assertEqual(data_by_id[reply_payload["id"]]["parent_id"], root_payload["id"])
         self.assertEqual(data_by_id[reply_payload["id"]]["recipient_username"], "reviewer")
+        self.assertEqual(data_by_id[root_payload["id"]]["block_anchor"], "block-1")
+        self.assertEqual(data_by_id[reply_payload["id"]]["block_anchor"], "block-1")
 
         notifications = self.db.query(models.Notification).order_by(models.Notification.created_at.asc()).all()
         self.assertEqual(len(notifications), 2)

@@ -120,6 +120,10 @@ class Annotation(Base):
     recipient_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     line_index = Column(Integer, nullable=False)
     line_text = Column(String(240), default="", nullable=False)
+    block_anchor = Column(String(64), nullable=True)
+    block_text_start = Column(Integer, nullable=True)
+    block_text_end = Column(Integer, nullable=True)
+    quote_text = Column(String(240), default="", nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(String, default=get_current_time)
 

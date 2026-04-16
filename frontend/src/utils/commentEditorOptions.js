@@ -42,9 +42,12 @@ export const positionCommentToolbarPanel = (panel) => {
     const itemRect = toolbarItem.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
     const verticalOffset = Math.max(Math.round(itemRect.height + 6), 28);
-    const aboveTop = itemRect.top - panelRect.height - 6;
+    
+    const spaceBelow = window.innerHeight - itemRect.bottom;
+    const spaceAbove = itemRect.top;
+    const popupHeight = panelRect.height > 0 ? panelRect.height : 240;
 
-    if (aboveTop >= 8) {
+    if (spaceBelow < popupHeight + 12 && spaceAbove > spaceBelow) {
         panel.style.top = 'auto';
         panel.style.bottom = `${verticalOffset}px`;
     } else {
