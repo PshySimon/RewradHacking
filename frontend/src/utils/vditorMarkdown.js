@@ -22,6 +22,23 @@ const stripOrphanBoldMarkers = (line) => line.replace(
 );
 
 const stripFontTags = (line = '') => line.replace(FONT_TAG_PATTERN, '');
+const normalizeBacktickedStrongSegments = (line = '') => line.replace(/`(\*\*|__)(.+?)\1`/g, '$1`$2`$1');
+const unwrapStrongWrappedInlineCode = (line = '') => line.replace(/(\*\*|__)`([^`\n]+)`\1/g, '`$2`');
+const collapseStrongWrappedSpaces = (line = '') => line.replace(/(\*\*|__)\s+\1/g, ' ');
+
+const mergeAdjacentStrongSegments = (line = '') => {
+    let normalized = line;
+    let previous = '';
+
+    while (normalized !== previous) {
+        previous = normalized;
+        normalized = normalized
+            .replace(/(\*\*|__)([^*\n]+?)\1\s+\1([^*\n]+?)\1/g, '$1$2 $3$1')
+            .replace(/(\*\*|__)([^*\n]+?)\1\1([^*\n]+?)\1/g, '$1$2$3$1');
+    }
+
+    return normalized;
+};
 
 const stripZeroWidthCharacters = (value = '') => value
     .replace(/\u200B/g, '')
@@ -272,7 +289,17 @@ export const normalizePastedVditorMarkdown = (text = '') => normalizeCalloutBloc
         for (const originalLine of lines) {
             const line = inFence
                 ? originalLine
-                : normalizeInlineStrongProseSpacing(stripFontTags(trimMalformedBoldSpacingInLine(originalLine)));
+                : normalizeInlineStrongProseSpacing(
+                    unwrapStrongWrappedInlineCode(
+                        mergeAdjacentStrongSegments(
+                            normalizeBacktickedStrongSegments(
+                                stripFontTags(
+                                    collapseStrongWrappedSpaces(trimMalformedBoldSpacingInLine(originalLine)),
+                                ),
+                            ),
+                        ),
+                    ),
+                );
 
             if (isFenceMarker(line)) {
                 inFence = !inFence;

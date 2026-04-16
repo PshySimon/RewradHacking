@@ -25,32 +25,50 @@ const scheduleRenderedDecorations = () => {
     });
 };
 
-const composeAfterCallbacks = (firstAfter, secondAfter) => () => {
-    if (typeof firstAfter === 'function') {
-        firstAfter();
-    }
-    if (typeof secondAfter === 'function') {
-        secondAfter();
-    }
+const composeAfterCallbacks = (firstAfter, secondAfter) => {
+    if (!firstAfter) return secondAfter;
+    if (!secondAfter) return firstAfter;
+    return () => {
+        if (typeof firstAfter === 'function') {
+            firstAfter();
+        }
+        if (typeof secondAfter === 'function') {
+            secondAfter();
+        }
+    };
 };
 
-const composeInputCallbacks = (firstInput, secondInput) => (value) => {
-    if (typeof firstInput === 'function') {
-        firstInput(value);
-    }
-    if (typeof secondInput === 'function') {
-        secondInput(value);
-    }
+const composeInputCallbacks = (firstInput, secondInput) => {
+    if (!firstInput) return secondInput;
+    if (!secondInput) return firstInput;
+    return (value) => {
+        if (typeof firstInput === 'function') {
+            firstInput(value);
+        }
+        if (typeof secondInput === 'function') {
+            secondInput(value);
+        }
+    };
 };
 
 export const buildVditorEditorOptions = (options = {}) => {
-    const { after, input, preview = {}, ...rest } = options;
+    const {
+        after,
+        input,
+        preview = {},
+        decorateOnAfter = true,
+        decorateOnInput = true,
+        ...rest
+    } = options;
+
+    const afterCallback = composeAfterCallbacks(after, decorateOnAfter ? scheduleRenderedDecorations : undefined);
+    const inputCallback = composeInputCallbacks(input, decorateOnInput ? scheduleRenderedDecorations : undefined);
 
     return {
         cdn: VDITOR_LOCAL_CDN,
         ...rest,
-        after: composeAfterCallbacks(after, scheduleRenderedDecorations),
-        input: composeInputCallbacks(input, scheduleRenderedDecorations),
+        ...(afterCallback ? { after: afterCallback } : {}),
+        ...(inputCallback ? { input: inputCallback } : {}),
         preview: {
             ...preview,
             math: {

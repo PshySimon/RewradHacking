@@ -400,14 +400,15 @@ export default function Editor() {
                                 if (!vditor) return;
                                 const currentValue = vditor.getValue();
                                 const normalizedValue = normalizeVditorMarkdown(currentValue);
+                                const normalizedPastedValue = normalizePastedVditorMarkdown(normalizedValue);
                                 const editorReset = irContainer.querySelector('.vditor-reset');
                                 debugPasteState(`${reason}:editor-frame`, {
                                     currentValue,
-                                    normalizedValue,
+                                    normalizedValue: normalizedPastedValue,
                                 });
                                 debugRenderedStrongState(`${reason}:before-normalize`, editorReset, currentValue);
-                                if (normalizedValue !== currentValue) {
-                                    vditor.setValue(normalizedValue);
+                                if (normalizedPastedValue !== currentValue) {
+                                    vditor.setValue(normalizedPastedValue);
                                     requestAnimationFrame(() => {
                                         if (!vditor) return;
                                         const refreshedEditorReset = irContainer.querySelector('.vditor-reset');

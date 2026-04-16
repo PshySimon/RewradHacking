@@ -1,11 +1,13 @@
 from sqlalchemy import Boolean, Column, Integer, String, Text, Enum, ForeignKey, UniqueConstraint
 import enum
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from .database import Base
 
+BEIJING_TZ = timezone(timedelta(hours=8))
+
 def get_current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M")
+    return datetime.now(timezone.utc).astimezone(BEIJING_TZ).strftime("%Y-%m-%d %H:%M")
 
 def generate_nano_id():
     return secrets.token_urlsafe(8)
@@ -100,6 +102,8 @@ class Annotation(Base):
     id = Column(String(16), primary_key=True, index=True, default=generate_nano_id)
     article_id = Column(String(16), ForeignKey("articles.id"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    parent_id = Column(String(16), ForeignKey("annotations.id"), nullable=True)
+    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     line_index = Column(Integer, nullable=False)
     line_text = Column(String(240), default="", nullable=False)
     content = Column(Text, nullable=False)

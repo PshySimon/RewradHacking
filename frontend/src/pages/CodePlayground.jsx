@@ -604,6 +604,13 @@ export default function CodePlayground() {
                                                 articleId={viewingSolution.id} 
                                                 articleAuthorId={viewingSolution.author_id} 
                                                 onCommentAdded={() => setViewingSolution({...viewingSolution, comments_count: viewingSolution.comments_count + 1})}
+                                                onFocusCommentConsumed={() => {
+                                                    const params = new URLSearchParams(location.search);
+                                                    params.delete('comment_id');
+                                                    const nextSearch = params.toString();
+                                                    navigate({ search: nextSearch ? `?${nextSearch}` : '' }, { replace: true });
+                                                    setFocusCommentId('');
+                                                }}
                                             />
                                         </div>
                                     </div>
@@ -617,6 +624,13 @@ export default function CodePlayground() {
                                 articleAuthorId={article.author_id} 
                                 onCommentAdded={() => setArticle({...article, comments_count: article.comments_count + 1})}
                                 focusCommentId={focusCommentId}
+                                onFocusCommentConsumed={() => {
+                                    const params = new URLSearchParams(location.search);
+                                    params.delete('comment_id');
+                                    const nextSearch = params.toString();
+                                    navigate({ search: nextSearch ? `?${nextSearch}` : '' }, { replace: true });
+                                    setFocusCommentId('');
+                                }}
                             />
                         )}
                     </div>

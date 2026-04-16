@@ -1771,15 +1771,20 @@ body {
     padding-bottom: 160px;
     position: relative;
 }
+.mac-annotation-hotzone-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 40;
+}
 .mac-line-annotated {
     position: relative;
 }
 .mac-line-annotation-btn {
     position: absolute;
     top: 0;
-    right: 0;
-    width: 44px;
-    height: 100%;
+    left: 0;
+    right: auto;
     border: none;
     background: transparent;
     padding: 0;
@@ -1794,10 +1799,64 @@ body {
     box-shadow: none;
     -webkit-appearance: none;
     appearance: none;
+    pointer-events: auto;
     z-index: 2;
 }
 .mac-line-annotation-btn:hover {
     cursor: pointer;
+    background: linear-gradient(90deg, rgba(0, 113, 227, 0) 0%, rgba(0, 113, 227, 0.06) 100%);
+}
+.mac-line-annotation-btn--has-preview {
+    background: linear-gradient(90deg, rgba(0, 113, 227, 0) 0%, rgba(0, 113, 227, 0.04) 100%);
+}
+.mac-line-annotation-preview {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: calc(100% - 24px);
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 113, 227, 0.12);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+    color: #1D1D1F;
+    pointer-events: none;
+}
+.mac-line-annotation-preview::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 100%;
+    width: 28px;
+    border-top: 1px solid rgba(0, 113, 227, 0.22);
+    transform: translateY(-50%);
+}
+.mac-line-annotation-preview-text {
+    display: block;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 500;
+    color: #424245;
+}
+.mac-line-annotation-preview-count {
+    flex: 0 0 auto;
+    min-width: 24px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(0, 113, 227, 0.1);
+    color: #0071E3;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
 }
 
 .mac-annotation-composer {
@@ -1807,14 +1866,22 @@ body {
     background: #FFFFFF;
     border: 1px solid rgba(0, 0, 0, 0.12);
     border-radius: 12px;
-    padding: 12px;
+    padding: 6px 6px 8px;
     box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     max-width: calc(100vw - 24px);
-    max-height: 360px;
-    overflow: auto;
+    max-height: 500px;
+    overflow: visible;
+}
+.mac-annotation-composer::before {
+    content: '';
+    position: absolute;
+    top: 28px;
+    right: 100%;
+    width: 18px;
+    border-top: 1px solid rgba(0, 113, 227, 0.22);
 }
 .mac-annotation-composer-title {
     display: flex;
@@ -1826,78 +1893,127 @@ body {
 .mac-annotation-composer-line {
     font-size: 12px;
     color: #86868B;
+    line-height: 16px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-shrink: 0;
 }
-.mac-annotation-textarea {
-    width: 100%;
-    min-height: 80px;
-    max-height: 180px;
-    resize: vertical;
+.mac-annotation-thread-panel {
+    border: 1px solid rgba(0, 113, 227, 0.12);
     border-radius: 10px;
-    border: 1px solid #D2D2D7;
-    padding: 10px;
-    font-size: 13px;
-    line-height: 1.5;
-    font-family: inherit;
-    color: #1D1D1F;
-    outline: none;
-    box-sizing: border-box;
+    background: #F8FBFF;
+    padding: 2px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
-.mac-annotation-textarea:focus {
-    border-color: #0071E3;
-    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.12);
-}
-.mac-annotation-emojis {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-.mac-annotation-emoji-btn {
-    border: 1px solid #E6E6EA;
-    border-radius: 8px;
-    width: 26px;
-    height: 26px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: #FFFFFF;
-    cursor: pointer;
-    transition: background 0.2s;
+.mac-annotation-thread-root {
     padding: 0;
-    font-size: 14px;
-    line-height: 1;
+    overflow: hidden;
 }
-.mac-annotation-emoji-btn:hover {
-    background: #F0F7FF;
+.mac-annotation-thread-toggle {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 8px 4px;
+}
+.mac-annotation-thread-actions {
+    margin-top: 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #86868B;
+}
+.mac-annotation-root-reply-row {
+    margin-top: 2px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #86868B;
+}
+.mac-annotation-root-reply {
+    flex: 0 0 auto;
+}
+.mac-annotation-thread-actions--single {
+    justify-content: flex-end;
+}
+.mac-annotation-thread-actions--reply {
+    margin-top: 6px;
+    justify-content: flex-end;
+}
+.mac-annotation-target {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #0071E3;
+    font-weight: 600;
+}
+.mac-annotation-replies {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 12px 12px 28px;
+}
+.mac-annotation-reply-item {
+    background: #FFFFFF;
+}
+.mac-annotation-reply-hint {
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #0071E3;
+    font-weight: 600;
+}
+.mac-annotation-inline-action {
+    border: none;
+    background: transparent;
+    padding: 0;
+    color: #0071E3;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.mac-annotation-inline-action:hover {
+    color: #005BB5;
+}
+.mac-annotation-editor-shell {
+    width: 100%;
+}
+.mac-annotation-input-panel {
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    padding-top: 4px;
 }
 .mac-annotation-composer-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    padding-top: 2px;
+    padding-bottom: 0;
+    flex-shrink: 0;
+}
+.mac-annotation-composer-action-buttons {
+    display: flex;
+    justify-content: flex-end;
     gap: 8px;
 }
-
-.mac-annotations-zone {
-    background: #FFFFFF;
-    border-radius: 20px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-    padding: 24px;
+.mac-annotation-composer-actions .mac-comment-submit {
+    padding: 5px 14px;
+    font-size: 12px;
 }
-.mac-annotations-zone h3 {
-    font-size: 18px;
-    font-weight: 600;
-    color: #1D1D1F;
-    margin-bottom: 16px;
-}
-.mac-annotations-list {
+.mac-annotation-thread {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
+    max-height: none;
+    overflow: visible;
+    padding-right: 4px;
 }
 .mac-annotation-item {
-    padding: 12px;
-    border-radius: 12px;
+    padding: 6px 8px;
+    border-radius: 8px;
     background: #FAFAFC;
     border: 1px solid #F0F0F5;
 }
@@ -1906,38 +2022,51 @@ body {
     border-color: rgba(0, 113, 227, 0.35);
     box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
 }
-.mac-annotation-focus {
-    background: #EDF7FF;
-    border-color: rgba(0, 113, 227, 0.35);
-    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
-}
 .mac-annotation-meta {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: 10px;
     font-size: 12px;
     color: #86868B;
     margin-bottom: 6px;
+}
+.mac-annotation-author {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    min-width: 0;
+    margin-left: -10px;
+    padding-left: 30px;
+}
+.mac-annotation-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #0071E3;
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    overflow: hidden;
 }
 .mac-annotation-user {
     font-weight: 600;
     color: #424245;
     font-size: 13px;
 }
-.mac-annotation-snippet {
-    font-size: 12px;
-    color: #86868B;
-    margin-bottom: 6px;
-}
 .mac-annotation-content {
     font-size: 14px;
     color: #1D1D1F;
     line-height: 1.5;
     white-space: pre-wrap;
-}
-.mac-annotation-empty {
-    color: #8A8A90;
-    font-size: 14px;
 }
 .mac-comments-zone { background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03); padding: 24px; }
 .mac-comments-zone h3 { font-size: 18px; font-weight: 600; color: #1D1D1F; margin-bottom: 24px; }
@@ -2159,12 +2288,12 @@ body {
 .mac-comment-trigger .vditor-toolbar,
 .mac-comments-zone .vditor-toolbar {
     display: flex !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: visible !important;
+    flex-wrap: wrap !important;
+    overflow: visible !important;
     padding: 2px 4px !important;
-    white-space: nowrap !important;
+    row-gap: 4px !important;
     align-items: center !important;
+    align-content: center !important;
     position: relative !important;
     z-index: 20 !important;
 }
@@ -2195,6 +2324,18 @@ body {
     overflow: auto !important;
 }
 
+.mac-comment-trigger .vditor-emojis__tail,
+.mac-comments-zone .vditor-emojis__tail {
+    min-height: 18px !important;
+    align-items: center !important;
+}
+
+.mac-comment-trigger .vditor-emojis__tip:empty::before,
+.mac-comments-zone .vditor-emojis__tip:empty::before {
+    content: '\00a0' !important;
+    visibility: hidden !important;
+}
+
 .mac-comment-trigger .vditor-content,
 .mac-comments-zone .vditor-content {
     position: relative !important;
@@ -2214,7 +2355,7 @@ body {
     float: none !important;
     padding: 0 3px !important;
     min-width: 0 !important;
-    flex-shrink: 1 !important;
+    flex: 0 0 auto !important;
     display: inline-flex !important;
     align-items: center !important;
     position: relative !important;
@@ -2237,6 +2378,17 @@ body {
     width: 14px !important;
     height: 14px !important;
     display: block !important;
+}
+
+.mac-comment-trigger .vditor-tooltipped:focus::before,
+.mac-comment-trigger .vditor-tooltipped:focus::after,
+.mac-comment-trigger .vditor-tooltipped:active::before,
+.mac-comment-trigger .vditor-tooltipped:active::after,
+.mac-comments-zone .vditor-tooltipped:focus::before,
+.mac-comments-zone .vditor-tooltipped:focus::after,
+.mac-comments-zone .vditor-tooltipped:active::before,
+.mac-comments-zone .vditor-tooltipped:active::after {
+    display: none !important;
 }
 
 /* 分隔线紧凑化 + 取消浮动 */
@@ -2359,6 +2511,67 @@ body {
     .mac-comments-stream {
         gap: 10px !important;
     }
+}
+
+.mac-annotation-editor-shell #annotation-mini-editor {
+    min-height: 96px !important;
+    margin-bottom: 0 !important;
+}
+
+.mac-annotation-editor-shell .vditor-toolbar {
+    min-height: 28px !important;
+    padding: 2px 4px !important;
+    row-gap: 2px !important;
+}
+
+.mac-annotation-editor-shell .vditor-toolbar__item {
+    padding: 0 2px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+}
+
+.mac-annotation-editor-shell .vditor-toolbar__item > button,
+.mac-annotation-editor-shell .vditor-toolbar__item .vditor-tooltipped {
+    padding: 2px !important;
+}
+
+.mac-annotation-editor-shell .vditor-toolbar__item svg {
+    width: 13px !important;
+    height: 13px !important;
+}
+
+.mac-annotation-editor-shell .vditor-content {
+    min-height: 0 !important;
+}
+
+.mac-annotation-editor-shell .vditor-ir {
+    min-height: 56px !important;
+    padding: 4px 10px 6px !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+}
+
+.mac-annotation-editor-shell .vditor-reset {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    padding-left: 0 !important;
+    text-indent: 0 !important;
+}
+
+.mac-annotation-editor-shell .vditor-ir__placeholder,
+.mac-annotation-editor-shell .vditor-reset::before {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    color: #B0B7C3 !important;
+}
+
+.mac-annotation-editor-shell .vditor-reset > p,
+.mac-annotation-editor-shell .vditor-reset > div,
+.mac-annotation-editor-shell .vditor-reset > [data-block='0'] {
+    margin: 0 !important;
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    text-indent: 0 !important;
 }
 
 /* ================= 🍎 顶级质感：定制草稿箱专属列表项 ================= */

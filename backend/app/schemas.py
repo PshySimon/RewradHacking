@@ -108,12 +108,15 @@ class AnnotationCreate(BaseModel):
     content: str
     line_index: int
     line_text: Optional[str] = ""
+    parent_id: Optional[str] = None
 
 
 class AnnotationOut(BaseModel):
     id: str
     article_id: str
     author_id: int
+    parent_id: Optional[str] = None
+    recipient_id: Optional[int] = None
     line_index: int
     line_text: str
     content: str
@@ -121,6 +124,9 @@ class AnnotationOut(BaseModel):
     author_username: str = ""
     author_nickname: Optional[str] = None
     author_avatar: Optional[str] = None
+    recipient_username: str = ""
+    recipient_nickname: Optional[str] = None
+    recipient_avatar: Optional[str] = None
     is_owner: bool = False
     model_config = ConfigDict(from_attributes=True)
 

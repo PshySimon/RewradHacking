@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Vditor from 'vditor';
@@ -10,8 +11,40 @@ import NotificationBell from '../components/NotificationBell';
 import AuthModal from '../components/AuthModal';
 import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
 import { buildVditorRenderOptions } from '../utils/vditorOptions';
+import {
+    buildCommentEditorOptions,
+    positionCommentToolbarPanel,
+    shouldRepositionCommentToolbarPanel,
+} from '../utils/commentEditorOptions';
+import {
+    buildAnnotationPreview,
+    buildAnnotationQuotePreview,
+    clampAnnotationComposerPosition,
+    getAnnotationHotzoneLayout,
+} from '../utils/annotationComposer';
 
-const ANNOTATION_EMOJI_BANK = ['💬', '👍', '👏', '🙏', '🔥', '🎯', '🤔', '🚀', '✅', '✨'];
+const noop = () => {};
+const ANNOTATION_HOTZONE_OVERLAY_ID = 'annotation-hotzone-overlay';
+
+const logAnnotationComposerDebug = (label, payload) => {
+    const safePayload = { label, ...payload };
+    console.debug('[AnnotationComposerDebug]', safePayload);
+    try {
+        console.debug('[AnnotationComposerDebugJSON]', label, JSON.stringify(safePayload));
+    } catch (error) {
+        console.debug('[AnnotationComposerDebugJSON]', label, 'serialize-failed', String(error));
+    }
+};
+
+const logAnnotationReplyDebug = (label, payload) => {
+    const safePayload = { label, ...payload };
+    console.debug('[AnnotationReplyDebug]', safePayload);
+    try {
+        console.debug('[AnnotationReplyDebugJSON]', label, JSON.stringify(safePayload));
+    } catch (error) {
+        console.debug('[AnnotationReplyDebugJSON]', label, 'serialize-failed', String(error));
+    }
+};
 
 const getAuthHeaders = () => {
     const token = localStorage.getItem('access_token');
@@ -69,6 +102,103 @@ const ArticleSkeleton = () => (
     </div>
 );
 
+const EmbeddedAnnotationEditor = ({
+    onInstanceReady = noop,
+    onValueChange = noop,
+    initialValue = '',
+    placeholder = '添加批注（仅支持文字+表情）',
+}) => {
+    const vditorRef = useRef(null);
+    const isAnnotationEditorReadyRef = useRef(false);
+    const onInstanceReadyRef = useRef(onInstanceReady);
+    const onValueChangeRef = useRef(onValueChange);
+
+    useEffect(() => {
+        onInstanceReadyRef.current = onInstanceReady;
+    }, [onInstanceReady]);
+
+    useEffect(() => {
+        onValueChangeRef.current = onValueChange;
+    }, [onValueChange]);
+
+    useEffect(() => {
+        const hostId = 'annotation-mini-editor';
+        const vditor = new Vditor(hostId, buildCommentEditorOptions({
+            toolbar: ['emoji'],
+            placeholder,
+            input: (value) => onValueChangeRef.current(normalizeAnnotationText(value)),
+            after: () => {
+                isAnnotationEditorReadyRef.current = true;
+                if (initialValue) {
+                    vditor.setValue(initialValue);
+                }
+
+                const root = document.getElementById(hostId);
+                if (root) {
+                    const observer = new MutationObserver(() => {
+                        const panel = root.querySelector('.vditor-panel');
+                        if (!(panel instanceof HTMLElement)) {
+                            return;
+                        }
+                        if (!shouldRepositionCommentToolbarPanel(root, panel)) {
+                            return;
+                        }
+                        window.requestAnimationFrame(() => {
+                            positionCommentToolbarPanel(panel);
+                        });
+                    });
+                    observer.observe(root, {
+                        attributes: true,
+                        childList: true,
+                        subtree: true,
+                        attributeFilter: ['style', 'class'],
+                    });
+                    root.__annotationEmojiObserver = observer;
+                }
+
+                onInstanceReadyRef.current(vditor);
+            },
+        }));
+        vditorRef.current = vditor;
+
+        return () => {
+            const root = document.getElementById(hostId);
+            if (root?.__annotationEmojiObserver) {
+                root.__annotationEmojiObserver.disconnect();
+                delete root.__annotationEmojiObserver;
+            }
+            isAnnotationEditorReadyRef.current = false;
+            onInstanceReadyRef.current(null);
+            vditorRef.current = null;
+            try { vditor.destroy(); } catch (error) {}
+        };
+    }, []);
+
+    useEffect(() => {
+        const vditor = vditorRef.current;
+        if (!vditor || !isAnnotationEditorReadyRef.current || typeof vditor.getValue !== 'function') {
+            return;
+        }
+
+        const normalizedInitialValue = normalizeAnnotationText(initialValue);
+        const normalizedCurrentValue = normalizeAnnotationText(vditor.getValue());
+        if (normalizedCurrentValue === normalizedInitialValue) {
+            return;
+        }
+
+        vditor.setValue(initialValue);
+    }, [initialValue]);
+
+    return (
+        <div className="mac-comment-trigger mac-annotation-editor-shell" style={{ marginBottom: 0, alignItems: 'stretch' }}>
+            <div
+                id="annotation-mini-editor"
+                style={{ width: '100%', minHeight: '96px', marginBottom: 0, border: '1px solid #D2D2D7', borderRadius: '10px', background: '#FAFAFC' }}
+            ></div>
+        </div>
+    );
+};
+
 export default function ArticleDetail() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -83,12 +213,17 @@ export default function ArticleDetail() {
     const [focusCommentId, setFocusCommentId] = useState('');
     const [focusAnnotationId, setFocusAnnotationId] = useState('');
     const [annotations, setAnnotations] = useState([]);
+    const [annotationReplyOverrides, setAnnotationReplyOverrides] = useState({});
+    const [expandedAnnotationRoots, setExpandedAnnotationRoots] = useState({});
     const [activeComposeLine, setActiveComposeLine] = useState(null);
     const [activeComposeText, setActiveComposeText] = useState('');
+    const [activeReplyParentId, setActiveReplyParentId] = useState('');
+    const [isExplicitReplyTarget, setIsExplicitReplyTarget] = useState(false);
+    const [annotationComposerMode, setAnnotationComposerMode] = useState('create');
     const [composerPos, setComposerPos] = useState({ x: 0, y: 0, lineIndex: null, lineText: '', popupWidth: 320, popupHeight: 360 });
     const annotationComposerRef = useRef(null);
-    const annotationTextAreaRef = useRef(null);
     const articlePreviewRef = useRef(null);
+    const annotationHotzoneRafRef = useRef(0);
     
     // 登录弹窗
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -129,38 +264,6 @@ export default function ArticleDetail() {
         }
     };
 
-    const clampComposerPosition = ({ x: pointerX, y: pointerY }) => {
-        const margin = 12;
-        const popupWidth = Math.min(360, Math.max(260, window.innerWidth - 24));
-        const maxAvailableHeight = window.innerHeight - margin * 2;
-        const preferredHeight = Math.min(360, maxAvailableHeight);
-        const contentBottomSpace = window.innerHeight - margin - pointerY;
-        const popupHeight = Math.max(220, Math.min(preferredHeight, contentBottomSpace));
-
-        let x = pointerX + 10;
-        if (x + popupWidth > window.innerWidth - margin) {
-            x = pointerX - popupWidth - 10;
-        }
-        if (x < margin) {
-            x = margin;
-        }
-
-        let y = pointerY - 12;
-        if (y + popupHeight > window.innerHeight - margin) {
-            y = window.innerHeight - popupHeight - margin;
-        }
-        if (y < margin) {
-            y = margin;
-        }
-
-        return {
-            x: Math.floor(x),
-            y: Math.floor(y),
-            popupWidth,
-            popupHeight: Math.floor(popupHeight),
-        };
-    };
-
     const fetchAnnotations = async () => {
         if (!article || article.is_restricted) {
             setAnnotations([]);
@@ -172,17 +275,36 @@ export default function ArticleDetail() {
             const list = Array.isArray(res.data) ? res.data : [];
             const normalized = list
                 .filter((item) => item && item.id)
-                .map((item) => ({
-                    ...item,
-                    line_text: normalizeAnnotationText(item.line_text || ''),
-                    content: normalizeAnnotationText(item.content || ''),
-                }))
+                .map((item) => {
+                    const override = annotationReplyOverrides[item.id] || null;
+                    return {
+                        ...item,
+                        parent_id: item.parent_id || override?.parent_id || null,
+                        recipient_id: item.recipient_id || override?.recipient_id || null,
+                        recipient_username: item.recipient_username || override?.recipient_username || '',
+                        recipient_nickname: item.recipient_nickname || override?.recipient_nickname || null,
+                        recipient_avatar: item.recipient_avatar || override?.recipient_avatar || null,
+                        line_text: normalizeAnnotationText(item.line_text || ''),
+                        content: normalizeAnnotationText(item.content || ''),
+                    };
+                })
                 .sort((a, b) => {
                     if (a.line_index !== b.line_index) {
                         return Number(a.line_index || 0) - Number(b.line_index || 0);
                     }
                     return (a.created_at || '').localeCompare(b.created_at || '');
                 });
+            logAnnotationReplyDebug('fetch-annotations', {
+                count: normalized.length,
+                annotations: normalized.map((item) => ({
+                    id: item.id,
+                    parent_id: item.parent_id || null,
+                    recipient_id: item.recipient_id || null,
+                    recipient_username: item.recipient_username || '',
+                    line_index: item.line_index,
+                    content: item.content,
+                })),
+            });
             setAnnotations(normalized);
         } catch (error) {
             console.error('加载批注失败：', error);
@@ -190,13 +312,30 @@ export default function ArticleDetail() {
         }
     };
 
+    const removeAnnotationHotzoneOverlay = () => {
+        if (typeof document === 'undefined') {
+            return;
+        }
+        document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID)?.remove();
+    };
+
     const buildLineAnnotationAnchors = () => {
         const root = articlePreviewRef.current;
         if (!root) {
+            removeAnnotationHotzoneOverlay();
             return;
         }
 
+        let overlay = document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID);
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = ANNOTATION_HOTZONE_OVERLAY_ID;
+            overlay.className = 'mac-annotation-hotzone-overlay';
+            document.body.appendChild(overlay);
+        }
+
         const annotationLineMap = {};
+        const annotationLineBuckets = {};
         annotations.forEach((annotation) => {
             if (!annotation || annotation.line_index < 1) {
                 return;
@@ -206,13 +345,16 @@ export default function ArticleDetail() {
                 annotationLineMap[annotation.line_index] = 0;
             }
             annotationLineMap[annotation.line_index] += 1;
+            if (!annotationLineBuckets[annotation.line_index]) {
+                annotationLineBuckets[annotation.line_index] = [];
+            }
+            annotationLineBuckets[annotation.line_index].push(annotation);
         });
 
         const blocks = Array.from(root.children);
         let lineIndex = 0;
-        const seen = new Set();
         const seenButtons = new Set();
-
+        const rootRect = root.getBoundingClientRect();
         blocks.forEach((block) => {
             if (!(block instanceof HTMLElement)) {
                 return;
@@ -222,58 +364,126 @@ export default function ArticleDetail() {
             if (!text) {
                 block.removeAttribute('data-annotation-line');
                 block.classList.remove('mac-line-annotated');
-                block.style.position = '';
-                block.style.paddingRight = '';
                 return;
             }
 
             lineIndex += 1;
-            block.dataset.annotationLine = String(lineIndex);
-            block.style.position = block.style.position || 'relative';
-            block.style.paddingRight = '44px';
+            const currentLineIndex = lineIndex;
+            block.dataset.annotationLine = String(currentLineIndex);
             block.classList.add('mac-line-annotated');
 
-            let marker = block.querySelector(':scope > .mac-line-annotation-btn');
+            let marker = overlay.querySelector(`.mac-line-annotation-btn[data-annotation-line="${currentLineIndex}"]`);
             if (!marker) {
                 marker = document.createElement('button');
                 marker.type = 'button';
                 marker.className = 'mac-line-annotation-btn';
                 marker.setAttribute('aria-label', '添加批注');
-                block.appendChild(marker);
+                overlay.appendChild(marker);
             }
 
             const normalizedText = text.slice(0, 180);
+            const blockRect = block.getBoundingClientRect();
+            const layout = getAnnotationHotzoneLayout({
+                rootRect,
+                blockRect,
+                viewportWidth: window.innerWidth,
+            });
             marker.dataset.annotationLine = String(lineIndex);
             marker.dataset.annotationText = normalizedText;
-            marker.textContent = '';
-            marker.title = `第 ${lineIndex} 行添加批注`;
+            const rootPreviewAnnotations = (annotationLineBuckets[currentLineIndex] || []).filter((annotation) => !annotation?.parent_id);
+            const preview = buildAnnotationPreview(rootPreviewAnnotations);
+            marker.classList.toggle('mac-line-annotation-btn--has-preview', Boolean(preview));
+            marker.dataset.annotationCount = String(preview?.totalCount || 0);
+            marker.style.left = `${Math.floor(rootRect.left + layout.left)}px`;
+            marker.style.top = `${Math.floor(blockRect.top)}px`;
+            marker.style.width = `${layout.width}px`;
+            marker.style.height = `${layout.height}px`;
+            marker.dataset.annotationLine = String(currentLineIndex);
+            marker.title = preview
+                ? `第 ${currentLineIndex} 行，已有 ${preview.totalCount} 条批注`
+                : `第 ${currentLineIndex} 行添加批注`;
+            marker.setAttribute(
+                'aria-label',
+                preview
+                    ? `第 ${currentLineIndex} 行，已有 ${preview.totalCount} 条批注`
+                    : `第 ${currentLineIndex} 行添加批注`,
+            );
+
+            let previewNode = marker.querySelector('.mac-line-annotation-preview');
+            if (preview) {
+                if (!(previewNode instanceof HTMLElement)) {
+                    previewNode = document.createElement('span');
+                    previewNode.className = 'mac-line-annotation-preview';
+                    marker.appendChild(previewNode);
+                }
+
+                previewNode.innerHTML = '';
+                const textNode = document.createElement('span');
+                textNode.className = 'mac-line-annotation-preview-text';
+                textNode.textContent = preview.previewText;
+                previewNode.appendChild(textNode);
+
+                if (preview.extraCount > 0) {
+                    const countNode = document.createElement('span');
+                    countNode.className = 'mac-line-annotation-preview-count';
+                    countNode.textContent = `+${preview.extraCount}`;
+                    previewNode.appendChild(countNode);
+                }
+            } else if (previewNode instanceof HTMLElement) {
+                previewNode.remove();
+            }
+
             marker.onclick = (event) => {
                 event.preventDefault();
                 event.stopPropagation();
 
-                const pointer = {
-                    x: event.clientX,
-                    y: event.clientY,
-                };
-                const { x, y, popupWidth, popupHeight } = clampComposerPosition(pointer);
-                setComposerPos({
-                    x,
-                    y,
-                    lineIndex,
-                    lineText: normalizedText,
-                    popupWidth,
-                    popupHeight,
+                const nextComposerPos = clampAnnotationComposerPosition({
+                    pointerX: event.clientX,
+                    pointerY: event.clientY,
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight,
                 });
-                setActiveComposeLine(lineIndex);
+                logAnnotationComposerDebug('hotzone-click', {
+                    lineIndex: currentLineIndex,
+                    pointer: {
+                        clientX: Math.round(event.clientX),
+                        clientY: Math.round(event.clientY),
+                    },
+                    rootRect: {
+                        top: Math.round(rootRect.top),
+                        left: Math.round(rootRect.left),
+                        right: Math.round(rootRect.right),
+                        bottom: Math.round(rootRect.bottom),
+                        width: Math.round(rootRect.width),
+                        height: Math.round(rootRect.height),
+                    },
+                    blockRect: {
+                        top: Math.round(blockRect.top),
+                        left: Math.round(blockRect.left),
+                        right: Math.round(blockRect.right),
+                        bottom: Math.round(blockRect.bottom),
+                        width: Math.round(blockRect.width),
+                        height: Math.round(blockRect.height),
+                    },
+                    hotzoneLayout: layout,
+                    nextComposerPos,
+                    viewport: {
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                    },
+                });
+                openAnnotationBubbleForLine({
+                    lineIndex: currentLineIndex,
+                    lineText: normalizedText,
+                    resetDraft: true,
+                });
             };
 
-            seen.add(block);
             seenButtons.add(marker);
         });
 
-        Array.from(root.querySelectorAll('.mac-line-annotation-btn')).forEach((node) => {
-            const parent = node.parentElement;
-            if (!parent || !seen.has(parent) || !seenButtons.has(node)) {
+        Array.from(overlay.querySelectorAll('.mac-line-annotation-btn')).forEach((node) => {
+            if (!seenButtons.has(node)) {
                 node.remove();
             }
         });
@@ -331,9 +541,93 @@ export default function ArticleDetail() {
         return stripHeadingMarkup(title.trim());
     };
 
+    const getAnnotationLineElements = (lineIndex, fallbackLineText = '') => {
+        const root = articlePreviewRef.current;
+        if (!root || !lineIndex) {
+            return null;
+        }
+
+        const block = root.querySelector(`:scope > [data-annotation-line="${lineIndex}"]`);
+        const overlay = document.getElementById(ANNOTATION_HOTZONE_OVERLAY_ID);
+        const button = overlay?.querySelector(`.mac-line-annotation-btn[data-annotation-line="${lineIndex}"]`) || null;
+        if (!(block instanceof HTMLElement) || !(button instanceof HTMLElement)) {
+            return null;
+        }
+
+        return {
+            block,
+            button,
+            lineText: normalizeAnnotationText(fallbackLineText || block.dataset.annotationText || getLineTextFromNode(block)),
+        };
+    };
+
+    const getAnnotationRootId = (annotationId) => {
+        const byId = new Map(annotations.map((annotation) => [annotation.id, annotation]));
+        let current = byId.get(annotationId);
+        while (current?.parent_id && byId.has(current.parent_id)) {
+            current = byId.get(current.parent_id);
+        }
+        return current?.id || annotationId || '';
+    };
+
+    const getLineRootAnnotations = (lineIndex) => {
+        return annotations.filter((annotation) => (
+            Number(annotation?.line_index || 0) === Number(lineIndex || 0)
+            && !annotation?.parent_id
+        ));
+    };
+
+    const openAnnotationBubbleForLine = ({
+        lineIndex,
+        lineText = '',
+        resetDraft = false,
+        preserveFocus = false,
+        focusTargetId = '',
+    }) => {
+        const elements = getAnnotationLineElements(lineIndex, lineText);
+        if (!elements) {
+            return false;
+        }
+
+        const buttonRect = elements.button.getBoundingClientRect();
+        const nextComposerPos = clampAnnotationComposerPosition({
+            pointerX: buttonRect.right - 12,
+            pointerY: buttonRect.top + buttonRect.height / 2,
+            viewportWidth: window.innerWidth,
+            viewportHeight: window.innerHeight,
+        });
+
+        setComposerPos({
+            x: nextComposerPos.x,
+            y: nextComposerPos.y,
+            lineIndex,
+            lineText: elements.lineText,
+            popupWidth: nextComposerPos.popupWidth,
+            popupHeight: nextComposerPos.popupHeight,
+        });
+        if (resetDraft) {
+            setActiveComposeText('');
+            if (!preserveFocus) {
+                setFocusAnnotationId('');
+            }
+        }
+        const rootAnnotations = getLineRootAnnotations(lineIndex);
+        const defaultRootId = focusTargetId ? getAnnotationRootId(focusTargetId) : (rootAnnotations[0]?.id || '');
+        setAnnotationComposerMode(rootAnnotations.length > 0 ? 'thread' : 'create');
+        setActiveReplyParentId(defaultRootId);
+        setIsExplicitReplyTarget(false);
+        setExpandedAnnotationRoots(focusTargetId ? { [getAnnotationRootId(focusTargetId)]: true } : {});
+        setActiveComposeLine(lineIndex);
+        return true;
+    };
+
     const closeAnnotationComposer = () => {
         setActiveComposeLine(null);
         setActiveComposeText('');
+        setActiveReplyParentId('');
+        setIsExplicitReplyTarget(false);
+        setExpandedAnnotationRoots({});
+        setAnnotationComposerMode('create');
         setComposerPos({ x: 0, y: 0, lineIndex: null, lineText: '', popupWidth: 320, popupHeight: 360 });
     };
 
@@ -351,29 +645,67 @@ export default function ArticleDetail() {
         }
 
         try {
+            logAnnotationReplyDebug('submit-annotation:request', {
+                annotationComposerMode,
+                activeReplyParentId: activeReplyParentId || null,
+                isExplicitReplyTarget,
+                activeReplyTarget: activeReplyTarget ? {
+                    id: activeReplyTarget.id,
+                    parent_id: activeReplyTarget.parent_id || null,
+                    author_username: activeReplyTarget.author_username || '',
+                    author_nickname: activeReplyTarget.author_nickname || '',
+                    recipient_username: activeReplyTarget.recipient_username || '',
+                } : null,
+                payload: {
+                    content: plainContent,
+                    line_index: composerPos.lineIndex,
+                    line_text: composerPos.lineText,
+                    parent_id: annotationComposerMode === 'thread' ? activeReplyParentId || null : null,
+                },
+            });
             const res = await axios.post(
                 `/api/articles/${id}/annotations`,
                 {
                     content: plainContent,
                     line_index: composerPos.lineIndex,
                     line_text: composerPos.lineText,
+                    parent_id: annotationComposerMode === 'thread' ? activeReplyParentId || null : null,
                 },
                 { headers }
             );
+            logAnnotationReplyDebug('submit-annotation:response', {
+                id: res.data?.id || '',
+                parent_id: res.data?.parent_id || null,
+                recipient_id: res.data?.recipient_id || null,
+                recipient_username: res.data?.recipient_username || '',
+                line_index: res.data?.line_index ?? null,
+                content: res.data?.content || '',
+            });
 
-            const next = normalizeAnnotationText(res.data?.content || plainContent);
-            setAnnotations((prev) => [...prev, { ...res.data, content: next }].sort((a, b) => {
-                if (a.line_index !== b.line_index) {
-                    return Number(a.line_index || 0) - Number(b.line_index || 0);
-                }
-                return (a.created_at || '').localeCompare(b.created_at || '');
-            }));
+            if (annotationComposerMode === 'thread' && activeReplyParentId && activeReplyTarget?.id && res.data?.id) {
+                setAnnotationReplyOverrides((prev) => ({
+                    ...prev,
+                    [res.data.id]: {
+                        parent_id: res.data?.parent_id || activeReplyParentId,
+                        recipient_id: res.data?.recipient_id || activeReplyTarget.author_id || null,
+                        recipient_username: res.data?.recipient_username || activeReplyTarget.author_username || '',
+                        recipient_nickname: res.data?.recipient_nickname || activeReplyTarget.author_nickname || null,
+                        recipient_avatar: res.data?.recipient_avatar || activeReplyTarget.author_avatar || null,
+                    },
+                }));
+            }
 
-            closeAnnotationComposer();
-            setTimeout(() => {
-                setFocusAnnotationId(res.data?.id || '');
-                window.location.hash = `#annotation-${res.data?.id || ''}`;
-            }, 0);
+            await fetchAnnotations();
+
+            setFocusAnnotationId('');
+            setActiveComposeText('');
+            if (annotationComposerMode === 'create') {
+                closeAnnotationComposer();
+            } else {
+                const nextRootId = res.data?.parent_id || res.data?.id || '';
+                setActiveReplyParentId(nextRootId);
+                setIsExplicitReplyTarget(false);
+            }
             buildLineAnnotationAnchors();
         } catch (error) {
             console.error('提交批注失败：', error);
@@ -381,58 +713,54 @@ export default function ArticleDetail() {
         }
     };
 
-    const addAnnotationEmoji = (emoji) => {
-        const textarea = annotationTextAreaRef.current;
-        if (!textarea) {
-            setActiveComposeText((curr) => `${curr}${emoji}`);
-            return;
-        }
-
-        const start = textarea.selectionStart || 0;
-        const end = textarea.selectionEnd || 0;
-        const next = `${activeComposeText.slice(0, start)}${emoji}${activeComposeText.slice(end)}`;
-        setActiveComposeText(next);
-        requestAnimationFrame(() => {
-            textarea.focus();
-            textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
-        });
-    };
-
-    const scrollToAnchor = (anchorId) => {
-        const target = document.getElementById(anchorId);
-        if (!target) {
+    const focusAnnotationByHash = () => {
+        if (!focusAnnotationId) {
             return false;
         }
 
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        target.classList.add('mac-annotation-focus');
-        setTimeout(() => {
-            target.classList.remove('mac-annotation-focus');
-        }, 1600);
-        return true;
-    };
-
-    const focusAnnotationByHash = () => {
-        if (!focusAnnotationId) {
+        const targetAnnotation = annotations.find((annotation) => String(annotation?.id || '') === String(focusAnnotationId));
+        if (!targetAnnotation?.line_index) {
             return;
         }
 
+        const openTargetBubble = () => openAnnotationBubbleForLine({
+            lineIndex: targetAnnotation.line_index,
+            lineText: targetAnnotation.line_text || '',
+            resetDraft: true,
+            preserveFocus: true,
+            focusTargetId: targetAnnotation.id,
+        });
+
+        const elements = getAnnotationLineElements(targetAnnotation.line_index, targetAnnotation.line_text || '');
+        if (!elements) {
+            return false;
+        }
+
+        elements.block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
         let tries = 0;
-        const maxTries = 16;
-        const tryScroll = () => {
-            const anchorId = `annotation-${focusAnnotationId}`;
-            const ok = scrollToAnchor(anchorId);
-            if (ok) {
+        const maxTries = 12;
+        const tryOpen = () => {
+            buildLineAnnotationAnchors();
+            if (openTargetBubble()) {
+                if (typeof window !== 'undefined' && window.location.hash) {
+                    window.history.replaceState(
+                        window.history.state,
+                        '',
+                        `${location.pathname}${location.search}`,
+                    );
+                }
                 return;
             }
 
             tries += 1;
             if (tries < maxTries) {
-                setTimeout(tryScroll, 200);
+                setTimeout(tryOpen, 120);
             }
         };
 
-        tryScroll();
+        setTimeout(tryOpen, 180);
+        return true;
     };
 
     useEffect(() => {
@@ -460,11 +788,33 @@ export default function ArticleDetail() {
     }, [article]);
 
     useEffect(() => {
-        if (activeComposeLine === null || !annotationTextAreaRef.current) {
+        if (activeComposeLine === null || !annotationComposerRef.current) {
             return;
         }
-        annotationTextAreaRef.current.focus();
-    }, [activeComposeLine]);
+
+        const composerNode = annotationComposerRef.current;
+        window.requestAnimationFrame(() => {
+            const rect = composerNode.getBoundingClientRect();
+            logAnnotationComposerDebug('composer-visible', {
+                activeComposeLine,
+                composerPos,
+                locationHash: location.hash || '',
+                focusAnnotationId,
+                actualRect: {
+                    top: Math.round(rect.top),
+                    left: Math.round(rect.left),
+                    right: Math.round(rect.right),
+                    bottom: Math.round(rect.bottom),
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height),
+                },
+                viewport: {
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                },
+            });
+        });
+    }, [activeComposeLine, composerPos, location.hash, focusAnnotationId]);
 
     useEffect(() => {
         fetchMe();
@@ -510,6 +860,7 @@ export default function ArticleDetail() {
 
         setIsMainContentReady(false);
         setOutline([]);
+        removeAnnotationHotzoneOverlay();
     }, [article]);
 
     useEffect(() => {
@@ -525,6 +876,41 @@ export default function ArticleDetail() {
         }
         focusAnnotationByHash();
     }, [focusAnnotationId, annotations, isMainContentReady]);
+
+    useEffect(() => {
+        if (!isMainContentReady || article?.is_restricted) {
+            return;
+        }
+
+        const scheduleRebuild = () => {
+            if (annotationHotzoneRafRef.current) {
+                cancelAnimationFrame(annotationHotzoneRafRef.current);
+            }
+            annotationHotzoneRafRef.current = window.requestAnimationFrame(() => {
+                annotationHotzoneRafRef.current = 0;
+                buildLineAnnotationAnchors();
+            });
+        };
+
+        window.addEventListener('resize', scheduleRebuild);
+        window.addEventListener('scroll', scheduleRebuild, { passive: true });
+        return () => {
+            window.removeEventListener('resize', scheduleRebuild);
+            window.removeEventListener('scroll', scheduleRebuild);
+            if (annotationHotzoneRafRef.current) {
+                cancelAnimationFrame(annotationHotzoneRafRef.current);
+                annotationHotzoneRafRef.current = 0;
+            }
+        };
+    }, [isMainContentReady, article, annotations]);
+
+    useEffect(() => () => {
+        removeAnnotationHotzoneOverlay();
+        if (annotationHotzoneRafRef.current) {
+            cancelAnimationFrame(annotationHotzoneRafRef.current);
+            annotationHotzoneRafRef.current = 0;
+        }
+    }, []);
 
     useEffect(() => {
         if (activeComposeLine === null) {
@@ -598,6 +984,169 @@ export default function ArticleDetail() {
     const tagsArr = article.tags ? article.tags.split(',').filter(Boolean) : [];
     const hasAdminRights = user && (user.role === 'admin' || user.id === article.author_id);
     const showOutline = article && !['interview', 'solution'].includes(article.category);
+    const activeLineAnnotations = annotations.filter(
+        (annotation) => Number(annotation?.line_index || 0) === Number(activeComposeLine || 0)
+    );
+    const activeRootAnnotations = activeLineAnnotations.filter((annotation) => !annotation?.parent_id);
+    const activeReplyAnnotations = activeLineAnnotations.filter((annotation) => Boolean(annotation?.parent_id));
+    const repliesByRootId = activeReplyAnnotations.reduce((acc, annotation) => {
+        const rootId = getAnnotationRootId(annotation.id);
+        if (!acc[rootId]) {
+            acc[rootId] = [];
+        }
+        acc[rootId].push(annotation);
+        return acc;
+    }, {});
+    const activeReplyTarget = activeLineAnnotations.find((annotation) => annotation.id === activeReplyParentId) || null;
+    const annotationEditorPlaceholder = annotationComposerMode === 'thread'
+        ? '添加回复（仅支持文字+表情）'
+        : '添加批注（仅支持文字+表情）';
+    const annotationComposer = activeComposeLine !== null && (
+        <div
+            ref={annotationComposerRef}
+            className="mac-annotation-composer"
+            style={{ left: composerPos.x, top: composerPos.y, width: composerPos.popupWidth, maxHeight: composerPos.popupHeight }}
+        >
+            <div className="mac-annotation-composer-title">
+                <span>{annotationComposerMode === 'thread' ? `第 ${composerPos.lineIndex} 行批注详情` : `第 ${composerPos.lineIndex} 行新批注`}</span>
+            </div>
+            <div className="mac-annotation-composer-line">{buildAnnotationQuotePreview(composerPos.lineText, 20)}</div>
+            {annotationComposerMode === 'thread' && activeRootAnnotations.length > 0 && (
+                <div className="mac-annotation-thread-panel">
+                        <div className="mac-annotation-thread">
+                            {activeRootAnnotations.map((annotation) => {
+                                const replies = repliesByRootId[annotation.id] || [];
+                                const isExpanded = Boolean(expandedAnnotationRoots[annotation.id]);
+                                return (
+                                <div
+                                    key={annotation.id}
+                                    id={`annotation-inline-${annotation.id}`}
+                                    className={`mac-annotation-item mac-annotation-thread-root ${focusAnnotationId === annotation.id ? 'mac-annotation-item--focus' : ''}`}
+                                >
+                                    <div className="mac-annotation-thread-toggle">
+                                        <div className="mac-annotation-meta">
+                                            <span className="mac-annotation-author">
+                                                <span className="mac-annotation-avatar">
+                                                    {annotation.author_avatar || (annotation.author_nickname || annotation.author_username || 'U')[0].toUpperCase()}
+                                                </span>
+                                                <span className="mac-annotation-user">
+                                                    {annotation.author_nickname || annotation.author_username}
+                                                </span>
+                                            </span>
+                                            <span>{annotation.created_at}</span>
+                                        </div>
+                                        <div className="mac-annotation-content">{annotation.content}</div>
+                                        <div className="mac-annotation-root-reply-row">
+                                            {replies.length > 0 ? (
+                                                <button
+                                                    type="button"
+                                                    className="mac-annotation-inline-action"
+                                                    onClick={() => {
+                                                        setExpandedAnnotationRoots((prev) => ({
+                                                            ...prev,
+                                                            [annotation.id]: !prev[annotation.id],
+                                                        }));
+                                                    }}
+                                                >
+                                                    {isExpanded ? '收起回复' : `展开 ${replies.length} 条回复`}
+                                                </button>
+                                            ) : <span></span>}
+                                            <button
+                                                type="button"
+                                                className="mac-annotation-inline-action mac-annotation-root-reply"
+                                                onClick={() => {
+                                                    setActiveReplyParentId(annotation.id);
+                                                    setIsExplicitReplyTarget(true);
+                                                }}
+                                            >
+                                                回复
+                                            </button>
+                                        </div>
+                                    </div>
+                                        {replies.length > 0 && isExpanded ? (
+                                            <div className="mac-annotation-replies">
+                                                {replies.map((reply) => {
+                                                const replyRecipient = reply.recipient_nickname || reply.recipient_username || '用户';
+                                                return (
+                                                    <div
+                                                        key={reply.id}
+                                                        id={`annotation-inline-${reply.id}`}
+                                                        className={`mac-annotation-item mac-annotation-reply-item ${focusAnnotationId === reply.id ? 'mac-annotation-item--focus' : ''}`}
+                                                    >
+                                                        <div className="mac-annotation-meta">
+                                                            <span className="mac-annotation-author">
+                                                                <span className="mac-annotation-avatar">
+                                                                    {reply.author_avatar || (reply.author_nickname || reply.author_username || 'U')[0].toUpperCase()}
+                                                                </span>
+                                                                <span className="mac-annotation-user">
+                                                                    {reply.author_nickname || reply.author_username}
+                                                                </span>
+                                                            </span>
+                                                            <span>{reply.created_at}</span>
+                                                        </div>
+                                                        <div className="mac-annotation-target">
+                                                            回复 @{replyRecipient}
+                                                        </div>
+                                                        <div className="mac-annotation-content">{reply.content}</div>
+                                                        <div className="mac-annotation-thread-actions mac-annotation-thread-actions--reply">
+                                                            <button
+                                                                type="button"
+                                                                className="mac-annotation-inline-action"
+                                                                onClick={() => {
+                                                                    setActiveReplyParentId(reply.id);
+                                                                    setIsExplicitReplyTarget(true);
+                                                                }}
+                                                            >
+                                                                回复
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
+                    </div>
+                </div>
+            )}
+            <div className="mac-annotation-input-panel">
+                {annotationComposerMode === 'thread' && isExplicitReplyTarget && activeReplyTarget ? (
+                    <div className="mac-annotation-reply-hint">
+                        回复 @{activeReplyTarget.author_nickname || activeReplyTarget.author_username}
+                    </div>
+                ) : null}
+                <EmbeddedAnnotationEditor
+                    onValueChange={setActiveComposeText}
+                    initialValue={activeComposeText}
+                    placeholder={annotationEditorPlaceholder}
+                />
+            </div>
+            <div className="mac-annotation-composer-actions">
+                <div className="mac-annotation-composer-action-buttons">
+                    <button
+                        type="button"
+                        className="mac-comment-submit"
+                        onClick={closeAnnotationComposer}
+                    >
+                        取消
+                    </button>
+                    <button
+                        type="button"
+                        className="mac-comment-submit"
+                        onClick={handleCreateAnnotation}
+                        disabled={
+                            normalizeAnnotationText(activeComposeText).length === 0
+                            || normalizeAnnotationText(activeComposeText).length > 1200
+                        }
+                    >
+                        {annotationComposerMode === 'thread' ? '回复' : '发布'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <div className="mac-reading-room">
@@ -699,6 +1248,11 @@ export default function ArticleDetail() {
                                 {tagsArr.length > 0 && tagsArr.map((t, idx) => <TagPill key={idx} text={t} />)}
                             </div>
                             <div className="mac-article-meta-right">
+                                {(article.author_name || article.author_id) && (
+                                    <span style={{ fontSize: '13px', color: '#86868B', marginRight: '12px', fontWeight: 500 }}>
+                                        作者：{article.author_name || '作者'}
+                                    </span>
+                                )}
                                 {article.created_at && <span style={{ fontSize: '13px', color: '#86868B', marginRight: '12px', fontWeight: 500 }}>{article.created_at}</span>}
                                 <div className="mac-interaction-item" style={{cursor: 'default'}}>
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -735,85 +1289,6 @@ export default function ArticleDetail() {
                                 style={{ position: 'relative' }}
                             ></div>
                         )}
-
-                        {activeComposeLine !== null && (
-                            <div
-                                ref={annotationComposerRef}
-                                className="mac-annotation-composer"
-                                style={{ left: composerPos.x, top: composerPos.y, width: composerPos.popupWidth, maxHeight: composerPos.popupHeight }}
-                            >
-                                <div className="mac-annotation-composer-title">
-                                    <span>第 {composerPos.lineIndex} 行批注</span>
-                                    <span>{activeComposeText.length}/1200</span>
-                                </div>
-                                <div className="mac-annotation-composer-line">{composerPos.lineText}</div>
-                                <textarea
-                                    ref={annotationTextAreaRef}
-                                    className="mac-annotation-textarea"
-                                    placeholder="添加批注（仅支持文字+表情）"
-                                    value={activeComposeText}
-                                    onChange={(event) => setActiveComposeText(normalizeAnnotationText(event.target.value))}
-                                    maxLength={1200}
-                                />
-                                <div className="mac-annotation-emojis" role="list">
-                                    {ANNOTATION_EMOJI_BANK.map((emoji) => (
-                                        <button
-                                            type="button"
-                                            key={emoji}
-                                            className="mac-annotation-emoji-btn"
-                                            onClick={() => addAnnotationEmoji(emoji)}
-                                        >
-                                            {emoji}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="mac-annotation-composer-actions">
-                                    <button
-                                        type="button"
-                                        className="mac-comment-submit"
-                                        onClick={closeAnnotationComposer}
-                                    >
-                                        取消
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="mac-comment-submit"
-                                        onClick={handleCreateAnnotation}
-                                        disabled={normalizeAnnotationText(activeComposeText).length === 0 || normalizeAnnotationText(activeComposeText).length > 1200}
-                                    >
-                                        发布
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="mac-annotations-zone">
-                        <h3>批注</h3>
-                        {annotations.length === 0 ? (
-                            <div className="mac-annotation-empty">暂无批注，移动到正文右侧区域点击可发起批注</div>
-                        ) : (
-                            <div className="mac-annotations-list">
-                                {annotations.map((annotation) => (
-                                    <div
-                                        key={annotation.id}
-                                        id={`annotation-${annotation.id}`}
-                                        className={`mac-annotation-item ${focusAnnotationId === annotation.id ? 'mac-annotation-item--focus' : ''}`}
-                                    >
-                                        <div className="mac-annotation-meta">
-                                            <span className="mac-annotation-user">
-                                                {annotation.author_nickname || annotation.author_username}
-                                            </span>
-                                            <span>{annotation.created_at}</span>
-                                        </div>
-                                        <div className="mac-annotation-snippet">
-                                            第 {annotation.line_index} 行：{annotation.line_text || ''}
-                                        </div>
-                                        <div className="mac-annotation-content">{annotation.content}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
                     </div>
 
                     {/* 评论区：仅在非受限且渲染完成后显示 */}
@@ -823,6 +1298,16 @@ export default function ArticleDetail() {
                             articleAuthorId={article.author_id} 
                             onCommentAdded={() => setArticle({...article, comments_count: article.comments_count + 1})}
                             focusCommentId={focusCommentId}
+                            onFocusCommentConsumed={() => {
+                                if (typeof window !== 'undefined' && window.location.hash) {
+                                    window.history.replaceState(
+                                        window.history.state,
+                                        '',
+                                        `${location.pathname}${location.search}`,
+                                    );
+                                }
+                                setFocusCommentId('');
+                            }}
                         />
                     )}
                 </article>
@@ -834,6 +1319,10 @@ export default function ArticleDetail() {
                 onSuccess={handleAuthSuccess}
                 initialTab={authModalTab}
             />
+            {activeComposeLine !== null && typeof document !== 'undefined' && createPortal(
+                annotationComposer,
+                document.body,
+            )}
         </div>
     );
 }

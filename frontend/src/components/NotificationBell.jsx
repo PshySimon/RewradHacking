@@ -29,6 +29,10 @@ const formatNotificationText = (notification) => {
         return `${actor} 发表了新的批注`;
     }
 
+    if (notification.event_type === 'annotation_reply') {
+        return `${actor} 回复了你的批注`;
+    }
+
     return `${actor} 发表了新的评论`;
 };
 

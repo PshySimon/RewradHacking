@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from sqlalchemy import inspect, text
 import os
 
 from . import models, database, auth, schemas
@@ -9,6 +10,26 @@ from .routers import auth as auth_router, articles as articles_router, upload as
 
 # 创建所有数据库表
 models.Base.metadata.create_all(bind=engine)
+
+
+def _ensure_annotation_compat_columns():
+    inspector = inspect(engine)
+    if "annotations" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("annotations")}
+    compatibility_columns = {
+        "parent_id": "ALTER TABLE annotations ADD COLUMN parent_id VARCHAR(16)",
+        "recipient_id": "ALTER TABLE annotations ADD COLUMN recipient_id INTEGER",
+    }
+
+    with engine.begin() as connection:
+        for column_name, ddl in compatibility_columns.items():
+            if column_name not in existing_columns:
+                connection.execute(text(ddl))
+
+
+_ensure_annotation_compat_columns()
 
 app = FastAPI(
     title="Interview Platform Core API",

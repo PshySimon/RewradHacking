@@ -220,3 +220,28 @@ test('normalizeVditorMarkdown strips font tags after fenced code blocks so follo
     assert.match(normalized, /^## 位置编码层（Positional Encoding Layer）$/m);
     assert.match(normalized, /\*\*为什么需要position embedding？\*\*/);
 });
+
+test('normalizePastedVditorMarkdown canonicalizes font-wrapped prose-plus-code strong runs into parseable markdown', async () => {
+    const { normalizePastedVditorMarkdown, normalizeVditorMarkdown } = await import(moduleUrl);
+    const sample = [
+        '#### <font style="color:rgb(64, 64, 64);">二、 相对位置编码（Relative PE）的崛起（当前主流）</font>',
+        '<font style="color:rgb(64, 64, 64);">这类方法的核心思想是：</font>**<font style="color:rgb(64, 64, 64);">让注意力分数的计算依赖于两个token之间的相对距离</font>****<font style="color:rgb(64, 64, 64);"> </font>**`**<font style="color:rgb(64, 64, 64);background-color:rgb(236, 236, 236);">i-j</font>**`**<font style="color:rgb(64, 64, 64);">，而非它们的绝对位置</font>****<font style="color:rgb(64, 64, 64);"> </font>**`**<font style="color:rgb(64, 64, 64);background-color:rgb(236, 236, 236);">i</font>**`**<font style="color:rgb(64, 64, 64);"> </font>****<font style="color:rgb(64, 64, 64);">和</font>****<font style="color:rgb(64, 64, 64);"> </font>**`**<font style="color:rgb(64, 64, 64);background-color:rgb(236, 236, 236);">j</font>**`<font style="color:rgb(64, 64, 64);">。这更符合语言的内在规律（一个词的重要性往往取决于它与其它词的相对距离）。</font>',
+    ].join('\n');
+
+    const normalized = normalizePastedVditorMarkdown(normalizeVditorMarkdown(sample));
+
+    assert.doesNotMatch(normalized, /`?\*\*[^`\n]+\*\*`?\*\*/);
+    assert.match(normalized, /\*\*让注意力分数的计算依赖于两个token之间的相对距离`i-j`，而非它们的绝对位置`i`和`j`\*\*/);
+    assert.match(normalized, /`i-j`/);
+    assert.match(normalized, /`i`/);
+    assert.match(normalized, /`j`/);
+});
+
+test('normalizePastedVditorMarkdown unwraps isolated backticked strong fragments into plain inline code', async () => {
+    const { normalizePastedVditorMarkdown, normalizeVditorMarkdown } = await import(moduleUrl);
+    const sample = '模型无法处理比训练时所见更长的序列，因为超过长度</font>`**<font style="color:rgb(64, 64, 64);background-color:rgb(236, 236, 236);">N</font>**`<font style="color:rgb(64, 64, 64);">的位置根本没有编码。</font>';
+
+    const normalized = normalizePastedVditorMarkdown(normalizeVditorMarkdown(sample));
+
+    assert.equal(normalized, '模型无法处理比训练时所见更长的序列，因为超过长度`N`的位置根本没有编码。');
+});

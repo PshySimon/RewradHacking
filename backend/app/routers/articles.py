@@ -53,6 +53,9 @@ def read_article(
     db.refresh(article)
     
     result = schemas.ArticleOut.model_validate(article)
+    user = db.query(models.User).filter(models.User.id == article.author_id).first()
+    if user:
+        result.author_name = user.nickname or user.username
     # 如果文章是 registered 可见，且游客未登录，彻底清空内容
     if article.visibility == models.VisibilityEnum.registered and current_user is None:
         result.content = ""
@@ -360,6 +363,9 @@ def read_annotations(
     out = []
     for annotation in annotations:
         user = db.query(models.User).filter(models.User.id == annotation.author_id).first()
+        recipient = None
+        if annotation.recipient_id:
+            recipient = db.query(models.User).filter(models.User.id == annotation.recipient_id).first()
         item = schemas.AnnotationOut.model_validate(annotation)
         if user:
             item.author_username = user.username
@@ -368,6 +374,10 @@ def read_annotations(
             item.is_owner = current_user is not None and current_user.id == user.id
         else:
             item.author_username = "已注销的用户"
+        if recipient:
+            item.recipient_username = recipient.username
+            item.recipient_nickname = recipient.nickname
+            item.recipient_avatar = recipient.avatar
         out.append(item)
 
     return out
@@ -393,26 +403,46 @@ def create_annotation(
     if annotation_in.line_index < 1:
         raise HTTPException(status_code=400, detail="非法的行索引。")
 
+    parent_annotation = None
+    recipient_id = article.author_id
+    target_line_index = annotation_in.line_index
+    target_line_text = line_text[:240]
+    event_type = "annotation"
+
+    if annotation_in.parent_id:
+        parent_annotation = db.query(models.Annotation).filter(
+            models.Annotation.id == annotation_in.parent_id,
+            models.Annotation.article_id == article_id,
+        ).first()
+        if not parent_annotation:
+            raise HTTPException(status_code=400, detail="回复目标批注不存在。")
+        recipient_id = parent_annotation.author_id
+        target_line_index = parent_annotation.line_index
+        target_line_text = parent_annotation.line_text
+        event_type = "annotation_reply"
+
     new_annotation = models.Annotation(
         article_id=article_id,
         author_id=current_user.id,
-        line_index=annotation_in.line_index,
-        line_text=line_text[:240],
+        parent_id=parent_annotation.id if parent_annotation else None,
+        recipient_id=recipient_id,
+        line_index=target_line_index,
+        line_text=target_line_text,
         content=content,
     )
     db.add(new_annotation)
     db.flush()
 
     target_path = f"/article/{article_id}#annotation-{new_annotation.id}"
-    if current_user.id != article.author_id:
+    if recipient_id and current_user.id != recipient_id:
         db.add(models.Notification(
-            recipient_id=article.author_id,
+            recipient_id=recipient_id,
             actor_id=current_user.id,
             article_id=article_id,
             comment_id=new_annotation.id,
-            event_type="annotation",
+            event_type=event_type,
             target_path=target_path,
-            snippet=f"第{annotation_in.line_index}行：{content[0:120]}",
+            snippet=f"第{target_line_index}行：{content[0:120]}",
         ))
 
     db.commit()
@@ -422,6 +452,11 @@ def create_annotation(
     out.author_username = current_user.username
     out.author_nickname = current_user.nickname
     out.author_avatar = current_user.avatar
+    recipient = db.query(models.User).filter(models.User.id == recipient_id).first()
+    if recipient:
+        out.recipient_username = recipient.username
+        out.recipient_nickname = recipient.nickname
+        out.recipient_avatar = recipient.avatar
     out.is_owner = True
     return out
 

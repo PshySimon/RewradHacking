@@ -2,7 +2,11 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { debugVditorMath, normalizeVditorMarkdown, shouldDebugVditorMath } from '../utils/vditorMarkdown';
 import { buildVditorRenderOptions } from '../utils/vditorOptions';
-import { buildCommentEditorOptions } from '../utils/commentEditorOptions';
+import {
+    buildCommentEditorOptions,
+    positionCommentToolbarPanel,
+    shouldRepositionCommentToolbarPanel,
+} from '../utils/commentEditorOptions';
 const Vditor = window.Vditor;
 
 const getAuthHeaders = () => {
@@ -42,12 +46,117 @@ const CommentPreview = ({ content }) => {
 // 局部的评论区富文本输入引擎
 const EmbeddedCommentEditor = ({ onInstanceReady }) => {
     React.useEffect(() => {
+        const logEmojiPanelState = (root, label) => {
+            if (!root || typeof window === 'undefined') {
+                return;
+            }
+
+            const describe = (node) => {
+                if (!(node instanceof HTMLElement)) {
+                    return null;
+                }
+                const rect = node.getBoundingClientRect();
+                const style = window.getComputedStyle(node);
+                return {
+                    tag: node.tagName,
+                    className: node.className || '',
+                    id: node.id || '',
+                    display: style.display,
+                    position: style.position,
+                    zIndex: style.zIndex,
+                    top: style.top,
+                    right: style.right,
+                    bottom: style.bottom,
+                    left: style.left,
+                    overflow: `${style.overflow}/${style.overflowX}/${style.overflowY}`,
+                    rect: {
+                        top: Math.round(rect.top),
+                        left: Math.round(rect.left),
+                        width: Math.round(rect.width),
+                        height: Math.round(rect.height),
+                        right: Math.round(rect.right),
+                        bottom: Math.round(rect.bottom),
+                    },
+                };
+            };
+
+            const toolbar = root.querySelector('.vditor-toolbar');
+            const item = root.querySelector('.vditor-toolbar__item');
+            const panel = root.querySelector('.vditor-panel');
+            const emojis = root.querySelector('.vditor-emojis');
+            const content = root.querySelector('.vditor-content');
+            const editor = root.querySelector('.vditor-ir');
+
+            const hitAt = (x, y) => document.elementsFromPoint(x, y).slice(0, 6).map((node) => (
+                node instanceof HTMLElement
+                    ? {
+                        tag: node.tagName,
+                        className: node.className || '',
+                        id: node.id || '',
+                    }
+                    : null
+            )).filter(Boolean);
+
+            let hitTop = [];
+            let hitMid = [];
+            let hitBottom = [];
+            if (panel instanceof HTMLElement) {
+                const rect = panel.getBoundingClientRect();
+                const x = Math.max(0, Math.round(rect.left + Math.min(40, rect.width / 2)));
+                hitTop = hitAt(x, Math.max(0, Math.round(rect.top + 4)));
+                hitMid = hitAt(x, Math.max(0, Math.round(rect.top + rect.height / 2)));
+                hitBottom = hitAt(x, Math.max(0, Math.round(rect.bottom - 4)));
+            }
+
+            console.debug('[CommentEmojiDebug]', {
+                label,
+                root: describe(root),
+                toolbar: describe(toolbar),
+                toolbarItem: describe(item),
+                content: describe(content),
+                editor: describe(editor),
+                panel: describe(panel),
+                emojis: describe(emojis),
+                hitTop,
+                hitMid,
+                hitBottom,
+            });
+        };
+
         const vditor = new Vditor('embedded-comment-editor', buildCommentEditorOptions({
             after: () => {
+                const root = document.getElementById('embedded-comment-editor');
+                if (root) {
+                    const observer = new MutationObserver(() => {
+                        const panel = root.querySelector('.vditor-panel');
+                        if (!(panel instanceof HTMLElement)) {
+                            return;
+                        }
+                        if (!shouldRepositionCommentToolbarPanel(root, panel)) {
+                            return;
+                        }
+                        window.requestAnimationFrame(() => {
+                            positionCommentToolbarPanel(panel);
+                            logEmojiPanelState(root, 'emoji-panel-visible');
+                        });
+                    });
+                    observer.observe(root, {
+                        attributes: true,
+                        childList: true,
+                        subtree: true,
+                        attributeFilter: ['style', 'class'],
+                    });
+                    root.__commentEmojiDebugObserver = observer;
+                }
                 onInstanceReady(vditor);
             },
         }));
         return () => {
+            const root = document.getElementById('embedded-comment-editor');
+            if (root?.__commentEmojiDebugObserver) {
+                root.__commentEmojiDebugObserver.disconnect();
+                delete root.__commentEmojiDebugObserver;
+            }
             try { vditor.destroy(); } catch (e) {}
         };
     }, []);
@@ -165,11 +274,13 @@ const CommentThread = ({ thread, articleAuthorId, handleLike, setReplyingToId, r
     );
 };
 
-export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded, focusCommentId }) {
+export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded, focusCommentId, onFocusCommentConsumed = () => {} }) {
     const [comments, setComments] = useState([]);
     const [replyingToId, setReplyingToId] = useState(null);
     const [commentVditor, setCommentVditor] = useState(null);
+    const [localFocusCommentId, setLocalFocusCommentId] = useState('');
     const scrollTimerRef = useRef(null);
+    const effectiveFocusCommentId = localFocusCommentId || focusCommentId;
 
     // 进行防抖以确保当评论完全拉取后再执行映射
     useEffect(() => {
@@ -186,7 +297,7 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
     }, [articleId]);
 
     useEffect(() => {
-        if (!focusCommentId || comments.length === 0) {
+        if (!effectiveFocusCommentId || comments.length === 0) {
             return;
         }
 
@@ -194,9 +305,14 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
         const maxTries = 10;
 
         const tryScroll = () => {
-            const targetNode = document.getElementById(`comment-${focusCommentId}`);
+            const targetNode = document.getElementById(`comment-${effectiveFocusCommentId}`);
             if (targetNode) {
                 targetNode.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                if (effectiveFocusCommentId === focusCommentId) {
+                    onFocusCommentConsumed(focusCommentId);
+                } else {
+                    setLocalFocusCommentId('');
+                }
                 return;
             }
 
@@ -213,7 +329,7 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
                 clearTimeout(scrollTimerRef.current);
             }
         };
-    }, [focusCommentId, comments]);
+    }, [effectiveFocusCommentId, focusCommentId, comments, onFocusCommentConsumed]);
 
     const threads = useMemo(() => {
         const map = {};
@@ -242,11 +358,14 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
         return Object.values(map).map(thread => {
             thread.children.sort((a, b) => b.likes_count - a.likes_count);
             thread.shouldExpand = Boolean(
-                focusCommentId && (thread.id === focusCommentId || thread.children.some(child => child.id === focusCommentId))
-            );
-            return thread;
-        });
-    }, [comments, focusCommentId]);
+                    effectiveFocusCommentId && (
+                        thread.id === effectiveFocusCommentId
+                        || thread.children.some(child => child.id === effectiveFocusCommentId)
+                    )
+                );
+                return thread;
+            });
+    }, [comments, effectiveFocusCommentId]);
 
     const handleLikeComment = async (commentId, isLiked) => {
         try {
@@ -278,14 +397,15 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
                 alert('请先登录后发表评论。');
                 return;
             }
-            const res = await axios.post(`/api/articles/${articleId}/comments`, {
-                content: value,
-                article_id: articleId,
-                parent_id: parentId
-            }, { headers });
-            setComments([...comments, res.data]);
-            commentVditor.setValue('');
-            setReplyingToId(null);
+                const res = await axios.post(`/api/articles/${articleId}/comments`, {
+                    content: value,
+                    article_id: articleId,
+                    parent_id: parentId
+                }, { headers });
+                setComments([...comments, res.data]);
+                setLocalFocusCommentId(res.data.id);
+                commentVditor.setValue('');
+                setReplyingToId(null);
             if (!parentId && onCommentAdded) {
                 onCommentAdded();
             }
@@ -333,8 +453,8 @@ export default function ThreadZone({ articleId, articleAuthorId, onCommentAdded,
                             handleCreateComment={handleCreateComment}
                             setCommentVditor={setCommentVditor}
                             shouldExpand={Boolean(thread.shouldExpand)}
-                            focusCommentId={focusCommentId}
-                        />
+                                focusCommentId={effectiveFocusCommentId}
+                            />
                     ))
                 )}
             </div>

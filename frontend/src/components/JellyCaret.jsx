@@ -1,5 +1,60 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { getCollapsedCaretFallbackRect, getNativeCollapsedCaretRect } from '../utils/caretFallback';
+
+const toVisibleText = (value = '', limit = 80) => {
+    const normalized = String(value).replace(/\n/g, '\\n');
+    return normalized.length > limit ? `${normalized.slice(0, limit)}...[truncated]` : normalized;
+};
+
+const describeNode = (node) => {
+    if (!node) {
+        return null;
+    }
+
+    if (node.nodeType === 3) {
+        return {
+            nodeType: 3,
+            text: toVisibleText(node.textContent || ''),
+            parentTag: node.parentNode?.tagName || '',
+        };
+    }
+
+    return {
+        nodeType: node.nodeType,
+        tagName: node.tagName || '',
+        text: toVisibleText(node.textContent || ''),
+        childCount: node.childNodes?.length || 0,
+    };
+};
+
+const rectToPayload = (rect) => {
+    if (!rect) {
+        return null;
+    }
+
+    return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+    };
+};
+
+const debugJellyCaret = (stage, payload = {}) => {
+    if (typeof console === 'undefined' || typeof console.debug !== 'function') {
+        return;
+    }
+
+    console.debug(`[JellyCaretDebug] ${stage}`, payload);
+    try {
+        console.debug(`[JellyCaretDebugJSON] ${stage} ${JSON.stringify(payload)}`);
+    } catch (error) {
+        console.debug(`[JellyCaretDebugJSON] ${stage} <unserializable>`, error);
+    }
+};
 
 /**
  * 🌌 JellyCaret — 果冻弹性追踪光标
@@ -42,14 +97,23 @@ export default function JellyCaret({ editorReady }) {
         const range = sel.getRangeAt(0);
         const rects = range.getClientRects();
         let r = null;
+        let fallbackSource = 'native-empty';
 
         if (rects.length > 0) {
-            // 正常文字节点的选区探测
-            if (rects[0].height > 0 && rects[0].height <= 60 && rects[0].width < 10) {
-                r = rects[0];
+            r = getNativeCollapsedCaretRect(rects, sel);
+            if (r) {
+                fallbackSource = 'native';
             }
         } 
         
+        if (!r) {
+            const textFallbackRect = getCollapsedCaretFallbackRect(sel);
+            if (textFallbackRect) {
+                r = textFallbackRect;
+                fallbackSource = 'text-probe';
+            }
+        }
+
         if (!r) {
             // 触发彻底抛弃 DOM 突变的完美盲估法：由于空行或特殊块首尾
             let node = sel.anchorNode;
@@ -74,6 +138,7 @@ export default function JellyCaret({ editorReady }) {
                     top: nodeRect.top + pt,
                     height: 22 // 标准基础高度预估，杜绝巨大容器干扰
                 };
+                fallbackSource = 'node-box';
             }
         }
 
@@ -91,6 +156,16 @@ export default function JellyCaret({ editorReady }) {
             x = x - cRect.left + container.scrollLeft;
             y = y - cRect.top + container.scrollTop;
         }
+
+        debugJellyCaret('measure', {
+            anchorOffset: sel.anchorOffset,
+            anchorNode: describeNode(sel.anchorNode),
+            nativeRects: Array.from(rects).slice(0, 4).map(rectToPayload),
+            fallbackSource,
+            chosenRect: rectToPayload(r),
+            containerRect: container ? rectToPayload(container.getBoundingClientRect()) : null,
+            mapped: { x, y, h },
+        });
 
         return { x, y, h };
     }, []);
@@ -158,13 +233,14 @@ export default function JellyCaret({ editorReady }) {
         }
 
         // ---- SVG 路径构建 ----
-        // 起点和终点都锚定在直线位置（x=0），只有中段有微微弯曲
+        // SVG 内部坐标系固定为 20 高，避免 path 坐标和外层 height 同时按 h 缩放导致视觉高度翻倍。
         const h = Math.max(pos.h, 2);
+        const renderHeight = 20;
         const midBend = bend;  // 中段弯曲（很小的值，最大 4px）
 
         // 三次贝塞尔曲线：起点(0,0) → 终点(0,h)，中间控制点有横向偏移
         // 起点终点 x 都是 0 → 静止时就是一条直线
-        const path = `M 0,0 C ${midBend},${h * 0.33} ${midBend},${h * 0.66} 0,${h}`;
+        const path = `M 0,0 C ${midBend},${renderHeight * 0.33} ${midBend},${renderHeight * 0.66} 0,${renderHeight}`;
 
         // ---- 应用到 DOM ----
         const pathEl = svg.querySelector('.jc-path');
