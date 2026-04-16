@@ -40,25 +40,51 @@ export default function NotificationBell({ user }) {
     const [notifications, setNotifications] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasPrevPage, setHasPrevPage] = useState(false);
+    const [hasNextPage, setHasNextPage] = useState(false);
+    const [totalCount, setTotalCount] = useState(0);
+    const [unreadCount, setUnreadCount] = useState(0);
     const navigate = useNavigate();
     const popoverRef = useRef(null);
     const timerRef = useRef(null);
 
     const authHeaders = useMemo(() => getAuthHeaders(), [user]);
+    const totalPages = Math.max(1, Math.ceil(totalCount / 10));
+    const visiblePages = useMemo(() => {
+        if (totalPages <= 3) {
+            return Array.from({ length: totalPages }, (_, index) => index + 1);
+        }
+
+        if (currentPage <= 2) {
+            return [1, 2, 3];
+        }
+
+        if (currentPage >= totalPages - 1) {
+            return [totalPages - 2, totalPages - 1, totalPages];
+        }
+
+        return [currentPage - 1, currentPage, currentPage + 1];
+    }, [currentPage, totalPages]);
 
     const canPoll = () => document.visibilityState === 'visible' && document.hasFocus();
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = async (targetPage = 1) => {
         if (!user) return;
         try {
             const res = await axios.get('/api/notifications/', {
                 params: {
-                    unread_only: true,
-                    limit: 20,
+                    page: targetPage,
+                    page_size: 10,
                 },
                 headers: authHeaders,
             });
-            setNotifications(Array.isArray(res.data) ? res.data : []);
+            setNotifications(Array.isArray(res.data?.items) ? res.data.items : []);
+            setCurrentPage(Number(res.data?.page || targetPage));
+            setHasPrevPage(Boolean(res.data?.has_prev));
+            setHasNextPage(Boolean(res.data?.has_next));
+            setTotalCount(Number(res.data?.total_count || 0));
+            setUnreadCount(Number(res.data?.unread_count || 0));
         } catch (error) {
             console.error('拉取通知失败', error);
         }
@@ -77,10 +103,10 @@ export default function NotificationBell({ user }) {
             return;
         }
 
-        fetchNotifications();
+        fetchNotifications(currentPage);
         timerRef.current = setInterval(() => {
             if (canPoll()) {
-                fetchNotifications();
+                fetchNotifications(currentPage);
             }
         }, 3000);
     };
@@ -111,7 +137,7 @@ export default function NotificationBell({ user }) {
             window.removeEventListener('focus', handleActiveChange);
             window.removeEventListener('blur', handleActiveChange);
         };
-    }, [user, authHeaders]);
+    }, [user, authHeaders, currentPage]);
 
     useEffect(() => {
         const closeWhenClickOutside = (event) => {
@@ -133,7 +159,7 @@ export default function NotificationBell({ user }) {
         setIsOpen(prev => !prev);
         if (!isOpen) {
             setLoading(true);
-            await fetchNotifications();
+            await fetchNotifications(1);
             setLoading(false);
         }
     };
@@ -143,7 +169,7 @@ export default function NotificationBell({ user }) {
             await axios.post('/api/notifications/read-all', null, {
                 headers: authHeaders,
             });
-            setNotifications([]);
+            await fetchNotifications(currentPage);
         } catch (error) {
             console.error('标记全部已读失败', error);
         }
@@ -160,11 +186,12 @@ export default function NotificationBell({ user }) {
 
         setIsOpen(false);
         const path = notification.target_path || '/';
-        setNotifications((curr) => curr.filter(item => item.id !== notification.id));
+        setNotifications((curr) => curr.map((item) => (
+            item.id === notification.id ? { ...item, is_read: true } : item
+        )));
+        setUnreadCount((count) => Math.max(0, count - (notification.is_read ? 0 : 1)));
         navigate(path);
     };
-
-    const unreadCount = notifications.length;
 
     if (!user) {
         return null;
@@ -204,10 +231,10 @@ export default function NotificationBell({ user }) {
                         {loading && !notifications.length ? (
                             <div className="zhi-notification-empty">加载中…</div>
                         ) : notifications.length === 0 ? (
-                            <div className="zhi-notification-empty">暂无新提醒</div>
+                            <div className="zhi-notification-empty">暂无通知</div>
                         ) : notifications.map((item) => (
                             <div
-                                className="zhi-notification-item"
+                                className={`zhi-notification-item ${item.is_read ? 'zhi-notification-item--read' : 'zhi-notification-item--unread'}`}
                                 key={item.id}
                                 onClick={() => handleClickNotification(item)}
                             >
@@ -217,6 +244,37 @@ export default function NotificationBell({ user }) {
                                 <div className="zhi-notification-time">{item.created_at}</div>
                             </div>
                         ))}
+                    </div>
+                    <div className="zhi-notification-pagination">
+                        <button
+                            type="button"
+                            className="zhi-notification-page-link"
+                            onClick={() => fetchNotifications(currentPage - 1)}
+                            disabled={!hasPrevPage || loading}
+                        >
+                            上一页
+                        </button>
+                        <div className="zhi-notification-page-numbers">
+                            {visiblePages.map((page) => (
+                                <button
+                                    key={page}
+                                    type="button"
+                                    className={`zhi-notification-page-number ${page === currentPage ? 'is-active' : ''}`.trim()}
+                                    onClick={() => fetchNotifications(page)}
+                                    disabled={page === currentPage || loading}
+                                >
+                                    {page}
+                                </button>
+                            ))}
+                        </div>
+                        <button
+                            type="button"
+                            className="zhi-notification-page-link"
+                            onClick={() => fetchNotifications(currentPage + 1)}
+                            disabled={!hasNextPage || loading}
+                        >
+                            下一页
+                        </button>
                     </div>
                 </div>
             ) : null}

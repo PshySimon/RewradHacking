@@ -193,7 +193,7 @@ const EmbeddedAnnotationEditor = ({
         <div className="mac-comment-trigger mac-annotation-editor-shell" style={{ marginBottom: 0, alignItems: 'stretch' }}>
             <div
                 id="annotation-mini-editor"
-                style={{ width: '100%', minHeight: '96px', marginBottom: 0, border: '1px solid #D2D2D7', borderRadius: '10px', background: '#FAFAFC' }}
+                style={{ width: '100%', minHeight: '68px', marginBottom: 0, border: '1px solid rgba(0,0,0,0.06)', borderRadius: '12px', background: '#F8F8FA' }}
             ></div>
         </div>
     );
@@ -1127,7 +1127,8 @@ export default function ArticleDetail() {
                 <div className="mac-annotation-composer-action-buttons">
                     <button
                         type="button"
-                        className="mac-comment-submit"
+                        className="mac-cancel-btn"
+                        style={{ padding: '6px 14px', borderRadius: '10px', color: '#86868B', fontSize: '13px', background: 'transparent', cursor: 'pointer', border: '1px solid rgba(0,0,0,0.08)' }}
                         onClick={closeAnnotationComposer}
                     >
                         取消

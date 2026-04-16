@@ -6,6 +6,7 @@ import re
 
 from .. import schemas, database, models, auth
 from ..image_assets import clear_image_references, sync_image_references
+from ..notification_retention import purge_expired_notifications
 from .upload import UPLOAD_DIR
 
 router = APIRouter(prefix="/api/articles", tags=["Articles"])
@@ -300,6 +301,7 @@ def create_comment(
     if article.category == models.CategoryEnum.code:
         target_path = f"/codeplay/{article_id}?comment_id={new_comment.id}"
 
+    purge_expired_notifications(db)
     notified_recipient_ids = set()
     if current_user.id != article.author_id:
         notified_recipient_ids.add(article.author_id)
@@ -434,6 +436,7 @@ def create_annotation(
     db.flush()
 
     target_path = f"/article/{article_id}#annotation-{new_annotation.id}"
+    purge_expired_notifications(db)
     if recipient_id and current_user.id != recipient_id:
         db.add(models.Notification(
             recipient_id=recipient_id,

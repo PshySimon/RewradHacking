@@ -485,6 +485,8 @@ body {
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
     overflow: hidden;
     z-index: 120;
+    display: flex;
+    flex-direction: column;
 }
 
 .zhi-notification-header {
@@ -499,7 +501,8 @@ body {
 }
 
 .zhi-notification-list {
-    max-height: 360px;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
 }
 
@@ -508,6 +511,14 @@ body {
     border-bottom: 1px solid rgba(0, 0, 0, 0.04);
     cursor: pointer;
     transition: background 0.2s;
+}
+
+.zhi-notification-item--unread {
+    background: rgba(0, 113, 227, 0.06);
+}
+
+.zhi-notification-item--read {
+    opacity: 0.72;
 }
 
 .zhi-notification-item:hover {
@@ -547,6 +558,60 @@ body {
     font-size: 12px;
     cursor: pointer;
     padding: 0;
+}
+
+.zhi-notification-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    flex: 0 0 auto;
+}
+
+.zhi-notification-page-link {
+    border: none;
+    background: transparent;
+    color: #0071E3;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 0;
+    cursor: pointer;
+    flex: 0 0 auto;
+}
+
+.zhi-notification-page-link:disabled {
+    color: #86868B;
+    cursor: not-allowed;
+}
+
+.zhi-notification-page-numbers {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.zhi-notification-page-number {
+    border: none;
+    background: transparent;
+    color: #0071E3;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 0;
+    cursor: pointer;
+}
+
+.zhi-notification-page-number:disabled {
+    cursor: default;
+}
+
+.zhi-notification-page-number.is-active {
+    color: #0071E3;
+    font-weight: 700;
 }
 
 /* 布局体系维持，拉宽间隙建立视觉喘息孔 */
@@ -1862,17 +1927,19 @@ body {
 .mac-annotation-composer {
     position: fixed;
     z-index: 300;
-    width: 320px;
-    background: #FFFFFF;
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    border-radius: 12px;
-    padding: 6px 6px 8px;
-    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+    width: 360px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.04);
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 12px;
     max-width: calc(100vw - 24px);
-    max-height: 500px;
+    max-height: 540px;
     overflow: visible;
 }
 .mac-annotation-composer::before {
@@ -1886,18 +1953,22 @@ body {
 .mac-annotation-composer-title {
     display: flex;
     justify-content: space-between;
-    font-size: 12px;
+    font-size: 15px;
     color: #1D1D1F;
-    font-weight: 600;
+    font-weight: 700;
 }
 .mac-annotation-composer-line {
-    font-size: 12px;
+    font-size: 13px;
     color: #86868B;
-    line-height: 16px;
+    background: #F5F5F7;
+    padding: 8px 12px;
+    border-radius: 8px;
+    line-height: 1.5;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.03);
 }
 .mac-annotation-thread-panel {
     border: 1px solid rgba(0, 113, 227, 0.12);
@@ -1924,7 +1995,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
+    font-size: 13px;
     color: #86868B;
 }
 .mac-annotation-root-reply-row {
@@ -1932,7 +2003,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
+    font-size: 13px;
     color: #86868B;
 }
 .mac-annotation-root-reply {
@@ -1947,7 +2018,7 @@ body {
 }
 .mac-annotation-target {
     margin-top: 4px;
-    font-size: 12px;
+    font-size: 13px;
     color: #0071E3;
     font-weight: 600;
 }
@@ -1962,7 +2033,7 @@ body {
 }
 .mac-annotation-reply-hint {
     margin-bottom: 8px;
-    font-size: 12px;
+    font-size: 13px;
     color: #0071E3;
     font-weight: 600;
 }
@@ -1971,7 +2042,7 @@ body {
     background: transparent;
     padding: 0;
     color: #0071E3;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
 }
@@ -1982,8 +2053,8 @@ body {
     width: 100%;
 }
 .mac-annotation-input-panel {
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
-    padding-top: 4px;
+    border-top: none;
+    padding-top: 2px;
 }
 .mac-annotation-composer-actions {
     display: flex;
@@ -2000,8 +2071,8 @@ body {
     gap: 8px;
 }
 .mac-annotation-composer-actions .mac-comment-submit {
-    padding: 5px 14px;
-    font-size: 12px;
+    padding: 8px 16px;
+    font-size: 13px;
 }
 .mac-annotation-thread {
     display: flex;

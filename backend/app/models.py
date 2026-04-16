@@ -1,13 +1,27 @@
 from sqlalchemy import Boolean, Column, Integer, String, Text, Enum, ForeignKey, UniqueConstraint
 import enum
 import secrets
+import calendar
 from datetime import datetime, timedelta, timezone
 from .database import Base
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
+def get_beijing_now():
+    return datetime.now(timezone.utc).astimezone(BEIJING_TZ)
+
+def subtract_calendar_months(dt: datetime, months: int) -> datetime:
+    total_month = dt.year * 12 + (dt.month - 1) - months
+    year = total_month // 12
+    month = total_month % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+def get_notification_retention_cutoff(months: int = 6) -> str:
+    return subtract_calendar_months(get_beijing_now(), months).strftime("%Y-%m-%d %H:%M")
+
 def get_current_time():
-    return datetime.now(timezone.utc).astimezone(BEIJING_TZ).strftime("%Y-%m-%d %H:%M")
+    return get_beijing_now().strftime("%Y-%m-%d %H:%M")
 
 def generate_nano_id():
     return secrets.token_urlsafe(8)

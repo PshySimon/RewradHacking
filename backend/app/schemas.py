@@ -104,6 +104,16 @@ class NotificationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class NotificationPageOut(BaseModel):
+    items: list[NotificationOut]
+    page: int
+    page_size: int
+    total_count: int
+    unread_count: int
+    has_prev: bool
+    has_next: bool
+
+
 class AnnotationCreate(BaseModel):
     content: str
     line_index: int
