@@ -30,12 +30,17 @@ const ArticleExcerpt = ({ content, maxLength = 180 }) => {
 };
 
 export default function Dashboard() {
+    const INITIAL_FEED_LOADING_MIN_MS = 420;
     const [articles, setArticles] = useState([]);
     const [activeTab, setActiveTab] = useState(sessionStorage.getItem('dashboard_tab') || 'knowledge');
     const [user, setUser] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [transitionPhase, setTransitionPhase] = useState('idle');
+    const [transitionPhase, setTransitionPhase] = useState('preload');
+    const [feedLoadingPhase, setFeedLoadingPhase] = useState('visible');
+    const [hasCompletedInitialFeedLoad, setHasCompletedInitialFeedLoad] = useState(false);
     const pendingTabRef = useRef(null);
+    const loadingFadeTimerRef = useRef(0);
+    const cardIdleTimerRef = useRef(0);
     const navigate = useNavigate();
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [authModalTab, setAuthModalTab] = useState('login');
@@ -74,23 +79,61 @@ export default function Dashboard() {
 
     useEffect(() => {
         const fetchArticles = async () => {
+            const fetchStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
             try {
+                if (loadingFadeTimerRef.current) {
+                    window.clearTimeout(loadingFadeTimerRef.current);
+                }
+                if (cardIdleTimerRef.current) {
+                    window.clearTimeout(cardIdleTimerRef.current);
+                }
+                const shouldShowLoadingShell = !hasCompletedInitialFeedLoad;
+                setFeedLoadingPhase(shouldShowLoadingShell ? 'visible' : 'hidden');
                 const token = localStorage.getItem('access_token');
                 const headers = token ? { Authorization: `Bearer ${token}` } : {};
                 const res = await axios.get(`/api/articles/?category=${activeTab}`, { headers });
                 setArticles(res.data);
-                requestAnimationFrame(() => setTransitionPhase('fading-in'));
-                // 动态计算：等所有卡片动画播完再切 idle（stagger * 卡片数 + 单卡动画时长）
-                const cardCount = res.data.length;
-                const totalMs = Math.min(cardCount, 8) * 70 + 380;
-                setTimeout(() => setTransitionPhase('idle'), totalMs);
+                const continueIntoCards = () => {
+                    setTransitionPhase('preload');
+                    requestAnimationFrame(() => setTransitionPhase('fading-in'));
+                    const cardCount = res.data.length;
+                    const totalMs = Math.min(cardCount, 8) * 60 + 460;
+                    cardIdleTimerRef.current = window.setTimeout(() => setTransitionPhase('idle'), totalMs);
+                    setHasCompletedInitialFeedLoad(true);
+                };
+
+                if (!shouldShowLoadingShell) {
+                    continueIntoCards();
+                    return;
+                }
+
+                const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+                const elapsed = now - fetchStartedAt;
+                const waitBeforeFade = Math.max(0, INITIAL_FEED_LOADING_MIN_MS - elapsed);
+
+                loadingFadeTimerRef.current = window.setTimeout(() => {
+                    setFeedLoadingPhase('fading-out');
+                    loadingFadeTimerRef.current = window.setTimeout(() => {
+                        setFeedLoadingPhase('hidden');
+                        continueIntoCards();
+                    }, 320);
+                }, waitBeforeFade);
             } catch (err) {
                 console.error('data fetch failed:', err);
+                setFeedLoadingPhase('hidden');
                 setTransitionPhase('idle');
             }
         };
         fetchArticles();
-    }, [activeTab]);
+        return () => {
+            if (loadingFadeTimerRef.current) {
+                window.clearTimeout(loadingFadeTimerRef.current);
+            }
+            if (cardIdleTimerRef.current) {
+                window.clearTimeout(cardIdleTimerRef.current);
+            }
+        };
+    }, [activeTab, hasCompletedInitialFeedLoad]);
 
     const handleTabSwitch = useCallback((tab) => {
         if (tab === activeTab || transitionPhase !== 'idle') return;
@@ -227,7 +270,25 @@ export default function Dashboard() {
             <main className="zhi-main-layout">
                 {/* Apple 级丝滑过渡容器 */}
                 <div className={`zhi-feed zhi-feed--${transitionPhase}`}>
-                    {articles.length === 0 ? (
+                    {feedLoadingPhase !== 'hidden' ? (
+                        <div className={`zhi-feed-loading zhi-feed-loading--${feedLoadingPhase}`}>
+                            <div className="zhi-feed-loading-head">
+                                <div className="zhi-feed-loading-spinner" aria-hidden="true"></div>
+                            </div>
+                            {[0, 1, 2].map((item) => (
+                                <div key={item} className="zhi-feed-loading-card">
+                                    <div className="skeleton-pulse zhi-feed-loading-title"></div>
+                                    <div className="skeleton-pulse zhi-feed-loading-line zhi-feed-loading-line--wide"></div>
+                                    <div className="skeleton-pulse zhi-feed-loading-line"></div>
+                                    <div className="zhi-feed-loading-footer">
+                                        <div className="skeleton-pulse zhi-feed-loading-pill"></div>
+                                        <div className="skeleton-pulse zhi-feed-loading-pill"></div>
+                                        <div className="skeleton-pulse zhi-feed-loading-meta"></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : articles.length === 0 ? (
                         <div className="zhi-empty">暂无文章，点击上方"创作"发布第一篇。</div>
                     ) : (
                         articles.map((a, idx) => {
