@@ -38,6 +38,7 @@ export default function Dashboard() {
     const [transitionPhase, setTransitionPhase] = useState('preload');
     const [feedLoadingPhase, setFeedLoadingPhase] = useState('visible');
     const [hasCompletedInitialFeedLoad, setHasCompletedInitialFeedLoad] = useState(false);
+    const hasCompletedInitialFeedLoadRef = useRef(false);
     const pendingTabRef = useRef(null);
     const loadingFadeTimerRef = useRef(0);
     const cardIdleTimerRef = useRef(0);
@@ -87,7 +88,7 @@ export default function Dashboard() {
                 if (cardIdleTimerRef.current) {
                     window.clearTimeout(cardIdleTimerRef.current);
                 }
-                const shouldShowLoadingShell = !hasCompletedInitialFeedLoad;
+                const shouldShowLoadingShell = !hasCompletedInitialFeedLoadRef.current;
                 setFeedLoadingPhase(shouldShowLoadingShell ? 'visible' : 'hidden');
                 const token = localStorage.getItem('access_token');
                 const headers = token ? { Authorization: `Bearer ${token}` } : {};
@@ -99,6 +100,7 @@ export default function Dashboard() {
                     const cardCount = res.data.length;
                     const totalMs = Math.min(cardCount, 8) * 60 + 460;
                     cardIdleTimerRef.current = window.setTimeout(() => setTransitionPhase('idle'), totalMs);
+                    hasCompletedInitialFeedLoadRef.current = true;
                     setHasCompletedInitialFeedLoad(true);
                 };
 
@@ -133,7 +135,7 @@ export default function Dashboard() {
                 window.clearTimeout(cardIdleTimerRef.current);
             }
         };
-    }, [activeTab, hasCompletedInitialFeedLoad]);
+    }, [activeTab]);
 
     const handleTabSwitch = useCallback((tab) => {
         if (tab === activeTab || transitionPhase !== 'idle') return;

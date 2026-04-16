@@ -14,15 +14,18 @@ test('Dashboard renders a loading shell with spinner and fades it out before car
 
     assert.match(source, /const INITIAL_FEED_LOADING_MIN_MS = 420/);
     assert.match(source, /const \[hasCompletedInitialFeedLoad, setHasCompletedInitialFeedLoad\] = useState\(false\)/);
+    assert.match(source, /const hasCompletedInitialFeedLoadRef = useRef\(false\)/);
     assert.match(source, /const \[feedLoadingPhase, setFeedLoadingPhase\] = useState\('visible'\)/);
     assert.match(source, /const \[transitionPhase, setTransitionPhase\] = useState\('preload'\)/);
-    assert.match(source, /const shouldShowLoadingShell = !hasCompletedInitialFeedLoad/);
+    assert.match(source, /const shouldShowLoadingShell = !hasCompletedInitialFeedLoadRef\.current/);
     assert.match(source, /setFeedLoadingPhase\(shouldShowLoadingShell \? 'visible' : 'hidden'\)/);
     assert.match(source, /const waitBeforeFade = Math\.max\(0, INITIAL_FEED_LOADING_MIN_MS - elapsed\)/);
     assert.match(source, /setTransitionPhase\('preload'\)/);
     assert.match(source, /setFeedLoadingPhase\('fading-out'\)/);
     assert.match(source, /setFeedLoadingPhase\('hidden'\)/);
+    assert.match(source, /hasCompletedInitialFeedLoadRef\.current = true/);
     assert.match(source, /setHasCompletedInitialFeedLoad\(true\)/);
+    assert.match(source, /\}, \[activeTab\]\);/);
     assert.match(source, /className=\{`zhi-feed-loading zhi-feed-loading--\$\{feedLoadingPhase\}`\}/);
     assert.match(source, /className="zhi-feed-loading-spinner"/);
     assert.match(source, /className="zhi-feed-loading-card"/);
