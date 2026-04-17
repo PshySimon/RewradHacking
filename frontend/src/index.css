@@ -878,18 +878,15 @@ body {
     padding: 0px 10px !important;
     min-height: 36px !important;
     
-    /* 解决双屏模式下空间受挤压导致的按钮折行脱落问题 */
+    /* 允许主编辑器工具栏换行，避免横向滚动同时保留 hover tooltip 的可见溢出 */
     display: flex !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    row-gap: 4px !important;
     align-items: center !important;
-    white-space: nowrap !important;
-    scrollbar-width: none; /* Firefox */
-}
-
-/* 隐藏横向滚动条保留清爽干净界面 */
-.vditor-toolbar::-webkit-scrollbar {
-    display: none;
+    align-content: center !important;
+    position: relative !important;
+    z-index: 20 !important;
 }
 
 /* 截断所有预设的逻辑物理分行元素 */
@@ -900,15 +897,124 @@ body {
 /* 斩底线：将内部所有把框架撑起来的肥胖按钮一并降维打薄 */
 .vditor-toolbar__item {
     float: none !important; /* 剿灭上个时代原生的 float 布局 */
-    flex-shrink: 1 !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    position: relative !important;
     height: 28px !important;
     line-height: 28px !important;
     padding: 0 6px !important;
 }
 
+.vditor-toolbar__divider {
+    float: none !important;
+    flex: 0 0 auto !important;
+    margin: 0 6px !important;
+    height: 16px !important;
+}
+
 .vditor-toolbar__item svg {
     height: 14px !important;
     width: 14px !important;
+}
+
+.vditor-table-insert-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 15;
+}
+
+.vditor-table-insert-hitzone {
+    position: absolute;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.vditor-table-insert-line,
+.vditor-table-insert-triangle {
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.vditor-table-insert-line {
+    transform: translate(-50%, -50%);
+    background: rgba(0, 113, 227, 0.2);
+    border-radius: 999px;
+    z-index: 1;
+}
+
+.vditor-table-insert-line--active {
+    opacity: 1;
+    background: #0071E3;
+    box-shadow: 0 0 6px rgba(0, 113, 227, 0.3);
+}
+
+/* Transform the "triangle" into an elegant, unified Add button */
+.vditor-table-insert-triangle {
+    width: 20px;
+    height: 20px;
+    background: #0071E3;
+    border-radius: 50%;
+    /* The white border creates a mask effect, visually splitting the line seamlessly */
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.25);
+    z-index: 2;
+}
+
+/* Draw a sleek, directional chevron (arrow) inside */
+.vditor-table-insert-triangle::before {
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-top: 2px solid #FFFFFF;
+    border-right: 2px solid #FFFFFF;
+    border-radius: 1px;
+    top: 50%;
+    left: 50%;
+}
+
+.vditor-table-insert-triangle::after {
+    display: none;
+}
+
+/* Directional rotations and visual centering for the chevron */
+.vditor-table-insert-triangle--right::before {
+    transform: translate(-65%, -50%) rotate(45deg);
+}
+
+.vditor-table-insert-triangle--left::before {
+    transform: translate(-35%, -50%) rotate(-135deg);
+}
+
+.vditor-table-insert-triangle--up::before {
+    transform: translate(-50%, -35%) rotate(-45deg);
+}
+
+.vditor-table-insert-triangle--down::before {
+    transform: translate(-50%, -65%) rotate(135deg);
+}
+
+/* Center exactly on the boundary midpoint */
+.vditor-table-insert-triangle--left,
+.vditor-table-insert-triangle--right,
+.vditor-table-insert-triangle--up,
+.vditor-table-insert-triangle--down {
+    transform: translate(-50%, -50%) scale(0.85);
+}
+
+/* Pop effect when active */
+.vditor-table-insert-triangle--active {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
 }
 
 /* ==================================================== */
