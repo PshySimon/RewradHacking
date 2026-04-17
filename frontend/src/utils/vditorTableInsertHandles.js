@@ -2,6 +2,7 @@ const HOT_ZONE_RADIUS = 8;
 const ACTIVE_LINE_THICKNESS = 2.5;
 const OVERLAY_CLASS_PREFIX = 'vditor-table-insert-';
 const OVERLAY_ROOT_CLASS = 'vditor-table-insert-overlay';
+const TABLE_DELETE_SELECTION_ACTIVE_ATTR = 'data-vditor-table-selection-active';
 
 const buildVerticalBoundary = (column, side, tableRect, id) => {
     const x = side === 'before' ? column.left : column.right;
@@ -518,6 +519,9 @@ export function installTableInsertHandles(vditor, options = {}) {
 
         const tableElements = Array.from(root.querySelectorAll('table'));
         tableElements.forEach((tableElement) => {
+            if (tableElement?.getAttribute?.(TABLE_DELETE_SELECTION_ACTIVE_ATTR) === 'true') {
+                return;
+            }
             const metrics = ops.collectMetrics(tableElement);
             const boundaries = ops.buildTargets(metrics);
             overlayCleanups.push(
@@ -547,7 +551,13 @@ export function installTableInsertHandles(vditor, options = {}) {
         }
     });
     schedule();
-    mutationObserver.observe(root, { childList: true, subtree: true, characterData: true });
+    mutationObserver.observe(root, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: [TABLE_DELETE_SELECTION_ACTIVE_ATTR],
+    });
     ops.windowRef.addEventListener('resize', schedule);
 
     return () => {

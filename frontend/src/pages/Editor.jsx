@@ -16,6 +16,7 @@ import { localizeExternalImagesInVditor } from '../utils/vditorImageLocalization
 import { describeFenceMarkers, describeMarkdownStrongMarkers, describeNeedleContexts, toVisibleSnippet } from '../utils/vditorPasteDebug';
 import { insertPastedPlainText } from '../utils/vditorPasteInsert';
 import { installTableInsertHandles } from '../utils/vditorTableInsertHandles';
+import { installTableDeleteSelection } from '../utils/vditorTableDeleteSelection';
 
 export default function Editor() {
     const navigate = useNavigate();
@@ -638,6 +639,11 @@ export default function Editor() {
                     vditor.__cleanupTableInsertHandles = cleanupTableInsertHandles;
                     // ===========================================================
 
+                    // =============== 🧹[表格行列删除选择带] ===============
+                    const cleanupTableDeleteSelection = installTableDeleteSelection(vditor);
+                    vditor.__cleanupTableDeleteSelection = cleanupTableDeleteSelection;
+                    // ===========================================================
+
                     // =============== 🖼️[裂图自动修复系统] ===============
                     // 扫描编辑器中加载失败的外部图片，提供「重新获取」按钮
                     const editorResetEl = document.querySelector('.vditor-ir .vditor-reset');
@@ -683,6 +689,7 @@ export default function Editor() {
                 if (vditor) {
                     if (vditor.__cleanupAlignment) vditor.__cleanupAlignment();
                     if (vditor.__cleanupTableInsertHandles) vditor.__cleanupTableInsertHandles();
+                    if (vditor.__cleanupTableDeleteSelection) vditor.__cleanupTableDeleteSelection();
                     if (vditor.__cleanupBrokenImg) vditor.__cleanupBrokenImg();
                     clearAlignments();
                     vditor.destroy();

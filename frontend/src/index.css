@@ -1017,6 +1017,31 @@ body {
     transform: translate(-50%, -50%) scale(1);
 }
 
+.vditor-table-delete-selection-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 16;
+}
+
+.vditor-table-delete-selection-rect {
+    position: absolute;
+    border-radius: 8px;
+    pointer-events: none;
+    border: 1.5px solid rgba(0, 113, 227, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26), 0 0 0 1px rgba(0, 113, 227, 0.08);
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.vditor-table-delete-selection-rect--deletable {
+    background: rgba(0, 113, 227, 0.14);
+}
+
+.vditor-table-delete-selection-rect--static {
+    background: rgba(0, 113, 227, 0.08);
+    border-color: rgba(0, 113, 227, 0.52);
+}
+
 /* ==================================================== */
 /* ✒️ Typora 级沉浸式深度渲染视觉克隆皮肤 (Typora Style Override) */
 /* ==================================================== */

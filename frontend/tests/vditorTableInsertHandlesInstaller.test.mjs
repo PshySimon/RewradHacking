@@ -158,3 +158,68 @@ test('installTableInsertHandles ignores overlay-only mutations triggered by its 
         ['remove-window-resize'],
     ]);
 });
+
+test('installTableInsertHandles skips tables marked as delete-selection active', async () => {
+    const { installTableInsertHandles } = await import(moduleUrl);
+
+    const calls = [];
+    const activeTable = {
+        id: 'table-active',
+        getAttribute: (name) => (name === 'data-vditor-table-selection-active' ? 'true' : null),
+    };
+    const idleTable = {
+        id: 'table-idle',
+        getAttribute: () => null,
+    };
+
+    const cleanup = installTableInsertHandles(
+        { getValue: () => '', setValue: () => {} },
+        {
+            resolveRoot: () => ({ querySelectorAll: () => [activeTable, idleTable] }),
+            collectMetrics: (tableElement) => ({
+                tableRect: { left: 0, top: 0, right: 10, bottom: 10 },
+                columns: [{ left: 0, right: 10, anchorCell: { rowIndex: 0, columnIndex: 0, isHeader: true } }],
+                rows: [{ top: 0, bottom: 10, anchorCell: { rowIndex: 0, columnIndex: 0, isHeader: true } }],
+                tableElement,
+            }),
+            buildTargets: () => ({ vertical: [{ id: 'column-before-0' }], horizontal: [{ id: 'row-before-0' }] }),
+            mountOverlay: (root, tableElement) => {
+                calls.push(['mount', tableElement.id]);
+                return () => calls.push(['unmount', tableElement.id]);
+            },
+            createMutationObserver: () => ({
+                observe: () => calls.push(['observe-mutation']),
+                disconnect: () => calls.push(['disconnect-mutation']),
+            }),
+            createResizeObserver: () => ({
+                observe: () => calls.push(['observe-resize']),
+                disconnect: () => calls.push(['disconnect-resize']),
+            }),
+            requestFrame: (callback) => {
+                calls.push(['raf']);
+                callback();
+                return 1;
+            },
+            cancelFrame: () => calls.push(['cancel-raf']),
+            windowRef: {
+                addEventListener: () => calls.push(['add-window-resize']),
+                removeEventListener: () => calls.push(['remove-window-resize']),
+            },
+        },
+    );
+
+    cleanup();
+
+    assert.deepEqual(calls, [
+        ['raf'],
+        ['mount', 'table-idle'],
+        ['observe-resize'],
+        ['observe-mutation'],
+        ['add-window-resize'],
+        ['cancel-raf'],
+        ['unmount', 'table-idle'],
+        ['disconnect-resize'],
+        ['disconnect-mutation'],
+        ['remove-window-resize'],
+    ]);
+});
